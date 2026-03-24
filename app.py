@@ -55,22 +55,22 @@ SUPPORTED_STORES = {STORE_SITE, STORE_GPS, STORE_FINANCE}
 
 DEFAULT_SITE_APPS = [
     {
-        "slug": "gps-musical",
+        "slug": "bpa",
+        "nome": "RIS+BPA",
+        "descricao": "Prontuario e integracao com o backend do Firebird.",
+        "href": "/bpa/",
+    },
+    {
+        "slug": "financeiro",
+        "nome": "Financeiro",
+        "descricao": "Controle de lancamentos, contas, categorias e conciliacao.",
+        "href": "/financeiro/",
+    },
+    {
+        "slug": "gpsmusical",
         "nome": "GPS Musical",
         "descricao": "Gerencie repertorio, letras e blocos musicais.",
-        "href": "GPSMusical/gpsmusical.html",
-    },
-    {
-        "slug": "financeiro-nanotech",
-        "nome": "Financeiro Nanotech",
-        "descricao": "Controle de lancamentos, contas, categorias e conciliacao.",
-        "href": "FinanceiroNanotech/financeiro.html",
-    },
-    {
-        "slug": "prontuario-bpa",
-        "nome": "Prontuario BPA",
-        "descricao": "Gerenciador de atendimentos, cadastros e insercoes no BPA via backend local.",
-        "href": "prontuario-bpa.html",
+        "href": "/gpsmusical/",
     },
 ]
 
@@ -2650,6 +2650,8 @@ def serve_static(requested_path: str):
     candidate = ensure_within_root(BASE_DIR / normalized_path)
 
     if candidate.is_dir():
+        if requested_path and not requested_path.endswith("/"):
+            return redirect(f"/{normalized_path}/", code=302)
         index_file = candidate / "index.html"
         if index_file.exists():
             return send_from_directory(index_file.parent, index_file.name)
