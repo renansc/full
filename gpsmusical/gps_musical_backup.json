@@ -1,0 +1,90 @@
+{
+  "app": "gps_musical",
+  "version": 5,
+  "exportedAt": "2026-02-28T21:48:37.529Z",
+  "songs": [
+    {
+      "id": "81152046-9de4-4d82-97e2-e92e5e318763",
+      "title": "THE WALL",
+      "artist": "PINK FLOYD",
+      "key": "F",
+      "tags": [
+        "ROCK"
+      ],
+      "notes": "",
+      "audioMeta": {
+        "name": "05. Another Brick In The Wall  Part 2.mp3",
+        "mime": "audio/mpeg"
+      },
+      "blocks": [
+        {
+          "type": "Introdução",
+          "title": "INTRO 2  CONVENCAO",
+          "timeSec": 5,
+          "chords": "D D D D D-C-Bb G\nG G G G G-A",
+          "lyrics": ""
+        },
+        {
+          "type": "Introdução",
+          "title": "INTRO",
+          "timeSec": 10,
+          "chords": "A A C A  A F A  A E A",
+          "lyrics": ""
+        },
+        {
+          "type": "Introdução",
+          "title": "INTRO ESPECIAL",
+          "timeSec": 15,
+          "chords": "D BB G  C",
+          "lyrics": ""
+        },
+        {
+          "type": "Introdução",
+          "title": "INTRO FINAL",
+          "timeSec": 0,
+          "chords": "F BB F BB F BB F BB C",
+          "lyrics": "AAAHHHH AHHHH"
+        }
+      ],
+      "createdAt": "2026-02-28T16:28:58.730Z",
+      "updatedAt": "2026-02-28T21:48:35.009Z"
+    },
+    {
+      "id": "16c8c0c9-376c-4628-b27c-eae4cea546e2",
+      "title": "Exemplo - Minha Música",
+      "artist": "Artista",
+      "key": "G",
+      "tags": [
+        "exemplo",
+        "gps"
+      ],
+      "notes": "Use marcar tempos ou preencha Tempo (s)",
+      "audioMeta": null,
+      "blocks": [
+        {
+          "type": "Introdução",
+          "title": "",
+          "chords": "G  D  Em  C",
+          "lyrics": "",
+          "timeSec": 0
+        },
+        {
+          "type": "Verso",
+          "title": "1",
+          "chords": "G              D\nMinha letra aqui...\nEm             C\nContinua aqui...",
+          "lyrics": "Minha letra aqui...\nContinua aqui...",
+          "timeSec": 10
+        },
+        {
+          "type": "Refrão",
+          "title": "2x",
+          "chords": "C   D   G",
+          "lyrics": "Refrão da música...",
+          "timeSec": 25
+        }
+      ],
+      "createdAt": "2026-02-28T16:28:17.174Z",
+      "updatedAt": "2026-02-28T16:28:17.175Z"
+    }
+  ]
+}

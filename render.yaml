@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: nanotech-full
+    runtime: python
+    plan: starter
+    buildCommand: apt-get update && apt-get install -y libzbar0 && pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    healthCheckPath: /api/health
+    envVars:
+      - key: FLASK_SECRET_KEY
+        sync: false
+      - key: PORTAL_PASSWORD
+        sync: false
+      - key: GITHUB_OAUTH_CLIENT_ID
+        sync: false
+      - key: GITHUB_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: GITHUB_OAUTH_CALLBACK_URL
+        sync: false
+      - key: GITHUB_ALLOWED_USERS
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: DB_SSL
+        value: "false"
+      - key: FINANCE_SCRAPER_TIMEOUT_SECONDS
+        value: "12"
+      - key: FINANCE_RESEARCH_MAX_OFFERS
+        value: "6"

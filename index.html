@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Nanotech FULL</title>
+  <style>
+    :root {
+      --bg: #07111d;
+      --panel: rgba(10, 23, 40, 0.84);
+      --text: #eef5ff;
+      --muted: #9fb7d1;
+      --line: rgba(160, 200, 255, 0.18);
+      --accent: #67e8f9;
+      --radius: 24px;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(103, 232, 249, 0.18), transparent 28%),
+        radial-gradient(circle at 80% 12%, rgba(245, 158, 11, 0.14), transparent 22%),
+        linear-gradient(160deg, #050c17 0%, #0a1628 48%, #071120 100%);
+    }
+    .shell {
+      width: min(1100px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 32px 0 48px;
+    }
+    .hero, .card {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.35);
+    }
+    .hero {
+      padding: 28px;
+    }
+    .hero h1, .hero p { margin: 0; }
+    .hero h1 { font-size: clamp(2rem, 4vw, 3.4rem); }
+    .hero p { margin-top: 14px; color: var(--muted); line-height: 1.7; max-width: 60ch; }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 18px;
+      margin-top: 22px;
+    }
+    .card { padding: 22px; }
+    .card h2, .card p { margin: 0; }
+    .card p { margin-top: 10px; color: var(--muted); line-height: 1.6; }
+    a {
+      display: inline-flex;
+      margin-top: 18px;
+      min-height: 44px;
+      align-items: center;
+      justify-content: center;
+      padding: 0 16px;
+      border-radius: 14px;
+      color: #061120;
+      text-decoration: none;
+      background: linear-gradient(135deg, var(--accent), #c4f6ff);
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <h1>Nanotech FULL</h1>
+      <p>Ambiente de aplicativos preparados para rotas dedicadas no Render: BPA, Financeiro e GPS Musical.</p>
+    </section>
+
+    <section class="grid">
+      <article class="card">
+        <h2>BPA</h2>
+        <p>Modulo de prontuario e integracao com o backend do Firebird.</p>
+        <a href="/bpa/">Abrir BPA</a>
+      </article>
+      <article class="card">
+        <h2>Financeiro</h2>
+        <p>Gestao financeira completa servida em rota dedicada.</p>
+        <a href="/financeiro/">Abrir Financeiro</a>
+      </article>
+      <article class="card">
+        <h2>GPS Musical</h2>
+        <p>Repertorio e palco em rota dedicada.</p>
+        <a href="/gpsmusical/">Abrir GPS Musical</a>
+      </article>
+    </section>
+  </main>
+</body>
+</html>

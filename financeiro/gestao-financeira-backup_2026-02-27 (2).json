@@ -1,0 +1,174 @@
+{
+  "contas": [
+    {
+      "id": "conta_21aefdf4caa25_19c9f4f962d",
+      "nome": "Inter PJ",
+      "moeda": "BRL",
+      "saldoInicial": 0
+    },
+    {
+      "id": "conta_7a63f9c7756238_19c9f50a4a0",
+      "nome": "Inter PF",
+      "moeda": "BRL",
+      "saldoInicial": 0
+    }
+  ],
+  "categorias": [
+    {
+      "id": "cat_f314e64ffea058_19c9f4f962d",
+      "nome": "Alimentação",
+      "tipo": "DESPESA"
+    },
+    {
+      "id": "cat_f88ff86debaf8_19c9f4f962d",
+      "nome": "Transporte",
+      "tipo": "DESPESA"
+    },
+    {
+      "id": "cat_4c835f922f0ef_19c9f4f962d",
+      "nome": "Moradia",
+      "tipo": "DESPESA"
+    },
+    {
+      "id": "cat_e9d81554464fc8_19c9f4f962d",
+      "nome": "Salário",
+      "tipo": "RECEITA"
+    },
+    {
+      "id": "cat_9cbee2008c2af8_19c9f4f962d",
+      "nome": "Outros",
+      "tipo": "DESPESA"
+    },
+    {
+      "id": "cat_ed9e7342acc65_19c9f57142d",
+      "nome": "Material",
+      "tipo": "DESPESA"
+    }
+  ],
+  "lancamentos": [
+    {
+      "id": "lanc_75add651cffc08_19c9f6f6baa",
+      "data": "2026-02-27",
+      "contaId": "conta_7a63f9c7756238_19c9f50a4a0",
+      "tipo": "RECEITA",
+      "categoriaId": "cat_e9d81554464fc8_19c9f4f962d",
+      "desc": "Pix recebido: \"Cp :00360305-RENAN SANTOS COUTINHO\"",
+      "valor": 174,
+      "conciliado": true,
+      "bankTxId": "banktx_2c725387949448_19c9f605495"
+    },
+    {
+      "id": "lanc_372cd05cd55d18_19c9f60c57c",
+      "data": "2026-02-27",
+      "contaId": "conta_21aefdf4caa25_19c9f4f962d",
+      "tipo": "RECEITA",
+      "categoriaId": "cat_e9d81554464fc8_19c9f4f962d",
+      "desc": "Pix recebido: \"Cp :00360305-RENAN SANTOS COUTINHO\"",
+      "valor": 174,
+      "conciliado": false,
+      "bankTxId": null
+    },
+    {
+      "id": "lanc_8714c441356178_19c9f51cf67",
+      "data": "2026-02-27",
+      "contaId": "conta_21aefdf4caa25_19c9f4f962d",
+      "tipo": "DESPESA",
+      "categoriaId": "cat_ed9e7342acc65_19c9f57142d",
+      "desc": "Pix enviado: \"Cp :27098060-Eduardo Machado Stier\"",
+      "valor": 230,
+      "conciliado": true,
+      "bankTxId": "banktx_7314bc6b352b48_19c9f4fcc61"
+    },
+    {
+      "id": "lanc_c2ed2aeaa8a808_19c9f51cf67",
+      "data": "2026-02-27",
+      "contaId": "conta_21aefdf4caa25_19c9f4f962d",
+      "tipo": "RECEITA",
+      "categoriaId": "cat_e9d81554464fc8_19c9f4f962d",
+      "desc": "Pix recebido: \"Cp :00000000-RENAN S C 06587583903\"",
+      "valor": 724,
+      "conciliado": true,
+      "bankTxId": "banktx_b3d553c47554e8_19c9f4fcc61"
+    }
+  ],
+  "imports": [
+    {
+      "id": "imp_72daf27feafaa_19c9f4fcc5b",
+      "contaId": "conta_21aefdf4caa25_19c9f4f962d",
+      "createdAt": "2026-02-27 13:35:32",
+      "fileName": "Extrato-27-01-2026-a-27-02-2026-OFX.ofx",
+      "txs": [
+        {
+          "date": "2026-02-27",
+          "amount": 724,
+          "fitid": "202602270771",
+          "memo": "Pix recebido: \"Cp :00000000-RENAN S C 06587583903\"",
+          "trntype": "CREDIT",
+          "id": "banktx_b3d553c47554e8_19c9f4fcc61"
+        },
+        {
+          "date": "2026-02-27",
+          "amount": -230,
+          "fitid": "202602270772",
+          "memo": "Pix enviado: \"Cp :27098060-Eduardo Machado Stier\"",
+          "trntype": "PAYMENT",
+          "id": "banktx_7314bc6b352b48_19c9f4fcc61"
+        }
+      ]
+    },
+    {
+      "id": "imp_e5b9b542146bc_19c9f605493",
+      "contaId": "conta_7a63f9c7756238_19c9f50a4a0",
+      "createdAt": "2026-02-27 13:53:36",
+      "fileName": "Extrato-27-01-2026-a-27-02-2026-OFX (1).ofx",
+      "txs": [
+        {
+          "date": "2026-02-27",
+          "amount": 174,
+          "fitid": "202602270771",
+          "memo": "Pix recebido: \"Cp :00360305-RENAN SANTOS COUTINHO\"",
+          "trntype": "CREDIT",
+          "id": "banktx_2c725387949448_19c9f605495"
+        }
+      ]
+    }
+  ],
+  "reconciliations": [
+    {
+      "bankTxId": "banktx_b3d553c47554e8_19c9f4fcc61",
+      "lancId": "lanc_c2ed2aeaa8a808_19c9f51cf67"
+    },
+    {
+      "bankTxId": "banktx_7314bc6b352b48_19c9f4fcc61",
+      "lancId": "lanc_8714c441356178_19c9f51cf67"
+    },
+    {
+      "bankTxId": "banktx_2c725387949448_19c9f605495",
+      "lancId": "lanc_75add651cffc08_19c9f6f6baa"
+    }
+  ],
+  "config": {
+    "tolDias": 3,
+    "tolValor": 0.5,
+    "scoreMin": 60
+  },
+  "titulos": [
+    {
+      "id": "tit_8722f0eda8324_19c9f8eb945",
+      "tipo": "AP",
+      "pessoa": "Fernando  Tondato",
+      "desc": "prestação da data",
+      "categoriaId": "cat_4c835f922f0ef_19c9f4f962d",
+      "contaId": "conta_21aefdf4caa25_19c9f4f962d",
+      "valor": 1631.13,
+      "vencimento": "2026-02-27",
+      "centroCusto": "Moradia",
+      "obs": "",
+      "status": "ABERTO",
+      "baixadoEm": null,
+      "lancId": null,
+      "bankTxId": null,
+      "anexos": []
+    }
+  ]
+}

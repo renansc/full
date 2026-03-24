@@ -1,0 +1,1310 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GPS Musical</title>
+<style>
+:root{
+  --bg:#0b1020; --panel:#121a33; --text:#e9edff; --muted:#aeb7e6;
+  --line:rgba(255,255,255,.12); --primary:#6aa6ff; --danger:#ff6a6a; --ok:#5dffb0;
+  --shadow:0 12px 34px rgba(0,0,0,.38); --radius:16px;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+  background:
+    radial-gradient(1200px 600px at 15% 0%, rgba(106,166,255,.16), transparent),
+    radial-gradient(1200px 600px at 85% 0%, rgba(255,106,106,.10), transparent),
+    var(--bg);
+  color:var(--text);
+}
+.topbar{
+  position:sticky; top:0; z-index:10;
+  background:rgba(11,16,32,.92); backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);
+  padding:14px 16px;
+  display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap;
+}
+.brand{display:flex;gap:10px;align-items:center}
+.logo{
+  width:42px;height:42px;border-radius:14px;
+  display:grid;place-items:center;
+  background:rgba(255,255,255,.08);
+  border:1px solid var(--line);
+  box-shadow:var(--shadow);
+  font-size:18px;
+}
+.brand strong{font-size:16px}
+.brand small{color:var(--muted)}
+.tabs{display:flex;gap:8px;flex-wrap:wrap}
+.tab{
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.05);
+  color:var(--text);
+  padding:10px 12px;
+  border-radius:12px;
+  cursor:pointer;
+}
+.tab.active{border-color:rgba(106,166,255,.55); box-shadow:0 0 0 3px rgba(106,166,255,.12)}
+.container{max-width:1100px;margin:auto;padding:16px 16px 40px}
+.panel{display:none}
+.panel.active{display:block}
+.row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end}
+.grow{flex:1 1 240px}
+.space-between{justify-content:space-between;align-items:center}
+.field label{display:block;font-size:12px;color:var(--muted);margin:4px 2px}
+.field input,.field textarea,.field select{
+  width:100%; padding:10px 12px;
+  border-radius:12px; border:1px solid var(--line);
+  background:rgba(255,255,255,.04); color:var(--text); outline:none;
+}
+.field textarea{resize:vertical;min-height:110px}
+.btn{
+  padding:10px 12px; border-radius:12px;
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.05);
+  color:var(--text); cursor:pointer;
+}
+.btn.primary{border-color:rgba(106,166,255,.55); background:rgba(106,166,255,.18)}
+.btn.danger{border-color:rgba(255,106,106,.55); background:rgba(255,106,106,.16)}
+.btn.ok{border-color:rgba(93,255,176,.55); background:rgba(93,255,176,.14)}
+.btn.ghost{background:transparent}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.card{
+  background:rgba(18,26,51,.68);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:14px; box-shadow:var(--shadow);
+  margin:12px 0;
+}
+.grid{
+  display:grid; gap:12px;
+  grid-template-columns:repeat(auto-fill,minmax(260px,1fr));
+  margin-top:12px;
+}
+.song-card,.block-card{
+  background:rgba(18,26,51,.68);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:14px; box-shadow:var(--shadow);
+  cursor:pointer;
+}
+.song-title{font-weight:900;font-size:16px;margin-bottom:6px}
+.song-meta{color:var(--muted);font-size:12px;display:flex;gap:10px;flex-wrap:wrap}
+.pill{
+  font-size:11px; padding:4px 8px;
+  border-radius:999px; border:1px solid var(--line);
+  background:rgba(255,255,255,.03);
+}
+.hint{color:var(--muted);margin-top:14px}
+.hint.small{font-size:12px}
+.blocks{display:flex;flex-direction:column;gap:12px;margin-top:12px}
+.block-edit{
+  background:rgba(18,26,51,.68);
+  border:1px solid var(--line);
+  border-radius:var(--radius);
+  padding:12px; box-shadow:var(--shadow);
+}
+.block-head{display:flex;justify-content:space-between;align-items:flex-end;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.icon-btn{
+  width:40px;height:40px;border-radius:12px;
+  border:1px solid var(--line);
+  background:rgba(255,255,255,.04);
+  color:var(--text); cursor:pointer;
+}
+.icon-btn.danger{border-color:rgba(255,106,106,.55); background:rgba(255,106,106,.14)}
+.pre{
+  white-space:pre-wrap;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;
+  font-size:12.5px; line-height:1.45;
+  background:rgba(255,255,255,.03);
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:10px; margin:0;
+}
+.split{display:grid;gap:10px;grid-template-columns:1fr}
+@media (min-width:860px){ .split{grid-template-columns:1fr 1fr} }
+
+/* Palco */
+.stage{position:fixed;inset:0;background:rgba(6,8,18,.95);display:none;z-index:9999}
+.stage.active{display:block}
+.stage-inner{max-width:1100px;margin:0 auto;padding:16px;height:100%;display:flex;flex-direction:column;gap:12px}
+.stage-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.stage-title{font-weight:950;font-size:18px}
+.stage-sub{color:var(--muted);font-size:12px;margin-top:2px}
+.stage-card{flex:1;background:rgba(18,26,51,.75);border:1px solid var(--line);border-radius:22px;box-shadow:var(--shadow);padding:16px;overflow:auto}
+.stage-kind{font-weight:950;font-size:16px}
+.stage-blocktitle{color:var(--muted);margin-top:4px}
+.bigpre{
+  white-space:pre-wrap;
+  font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;
+  font-size:18px; line-height:1.5;
+  background:rgba(255,255,255,.03);
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:14px; margin:12px 0 0;
+}
+@media (min-width:860px){ .bigpre{font-size:20px} }
+.progress{height:10px;background:rgba(255,255,255,.08);border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.progress>div{height:100%;width:0%;background:rgba(106,166,255,.75)}
+kbd{border:1px solid var(--line);background:rgba(255,255,255,.04);padding:2px 6px;border-radius:8px;font-size:12px}
+.mini{font-size:12px;color:var(--muted)}
+audio{width:100%}
+</style>
+</head>
+
+<body>
+<header class="topbar">
+  <div class="brand">
+    <div class="logo">🎵</div>
+    <div>
+      <strong>GPS Musical</strong><br>
+      <small>Seu repertório sempre no rumo certo</small>
+    </div>
+  </div>
+
+  <nav class="tabs">
+    <button id="tabBtn-biblioteca" class="tab active" onclick="UI_showTab('biblioteca')" type="button">Biblioteca</button>
+    <button id="tabBtn-editor" class="tab" onclick="UI_showTab('editor')" type="button">Nova / Editar</button>
+    <button id="tabBtn-backup" class="tab" onclick="UI_showTab('backup')" type="button">Backup</button>
+  </nav>
+</header>
+
+<main class="container">
+
+  <!-- Biblioteca -->
+  <section id="tab-biblioteca" class="panel active">
+    <div class="row">
+      <div class="field grow">
+        <label>Buscar</label>
+        <input id="searchInput" oninput="UI_renderSongList()" placeholder="nome, artista, tom, letra, cifra, tags...">
+      </div>
+
+      <div class="field">
+        <label>Ordenar</label>
+        <select id="sortSelect" onchange="UI_renderSongList()">
+          <option value="updated_desc">Mais recentes</option>
+          <option value="title_asc">Título (A-Z)</option>
+          <option value="artist_asc">Artista (A-Z)</option>
+        </select>
+      </div>
+
+      <div class="row">
+        <button class="btn primary" onclick="UI_newSong()" type="button">+ Nova música</button>
+      </div>
+    </div>
+
+    <div id="songList" class="grid"></div>
+    <div class="hint">Clique em uma música para abrir. Depois você pode editar ou reproduzir.</div>
+  </section>
+
+  <!-- Editor -->
+  <section id="tab-editor" class="panel">
+    <div class="card">
+      <div style="font-weight:900;margin-bottom:10px">Dados da música</div>
+
+      <div class="row">
+        <div class="field grow">
+          <label>Título</label>
+          <input id="titleInput" placeholder="Ex: ...">
+        </div>
+        <div class="field grow">
+          <label>Artista</label>
+          <input id="artistInput" placeholder="Ex: ...">
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label>Tom</label>
+          <input id="keyInput" placeholder="Ex: G, Am, C#">
+        </div>
+        <div class="field grow">
+          <label>Tags (vírgula)</label>
+          <input id="tagsInput" placeholder="culto, louvor, rock...">
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field grow">
+          <label>Observações</label>
+          <input id="notesInput" placeholder="capotraste, ritmo, etc.">
+        </div>
+      </div>
+    </div>
+
+    <!-- Audio editor: store in IndexedDB, not JSON -->
+    <div class="card">
+      <div style="font-weight:900;margin-bottom:10px">Áudio (MP3) armazenado no dispositivo</div>
+      <div class="row">
+        <div class="field grow">
+          <label>Selecionar MP3 (fica salvo no navegador via IndexedDB)</label>
+          <input id="audioFileEditor" type="file" accept="audio/*" onchange="AUDIO_attachToEditor(event)">
+          <div class="mini" id="audioEditorStatus">Nenhum áudio vinculado.</div>
+        </div>
+        <div class="row">
+          <button class="btn danger" onclick="AUDIO_removeFromEditor()" type="button">Remover MP3</button>
+        </div>
+      </div>
+      <div class="hint small">
+        O MP3 não vai no backup JSON (para não ficar pesado). Ele fica salvo somente neste dispositivo/navegador.
+      </div>
+    </div>
+
+    <div class="row space-between">
+      <div style="font-weight:900">Blocos (cada um vira um card)</div>
+      <div class="row">
+        <button class="btn" onclick="UI_addBlock()" type="button">+ Adicionar bloco</button>
+        <button class="btn ghost" onclick="UI_resetEditor()" type="button">Limpar editor</button>
+      </div>
+    </div>
+
+    <div id="blocksEditor" class="blocks"></div>
+
+    <div class="row space-between" style="margin-top:10px">
+      <div class="hint small">
+        Para timeline, preencha <b>Tempo (s)</b> em cada bloco (0, 10, 25...). Ou use “Marcar tempos” com o MP3.
+      </div>
+      <div class="row">
+        <button class="btn danger" id="deleteSongBtn" onclick="UI_deleteSong()" type="button" disabled>Excluir</button>
+        <button class="btn primary" onclick="UI_saveSong()" type="button">Salvar</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- View -->
+  <section id="tab-view" class="panel">
+    <div class="row space-between">
+      <div>
+        <div id="viewTitle" style="font-weight:950;font-size:22px">—</div>
+        <div id="viewMeta" class="hint small">—</div>
+      </div>
+      <div class="row">
+        <button class="btn ghost" onclick="UI_showTab('biblioteca')" type="button">← Biblioteca</button>
+        <button class="btn" onclick="UI_editCurrent()" type="button">Editar</button>
+      </div>
+    </div>
+
+    <!-- Audio player -->
+    <div class="card">
+      <div style="font-weight:900;margin-bottom:8px">Áudio (MP3)</div>
+      <div id="audioDockView"></div>
+      <div class="row" style="margin-top:10px">
+        <label class="btn" for="audioFileView">Vincular / Trocar MP3</label>
+        <input id="audioFileView" type="file" accept="audio/*" onchange="AUDIO_attachToCurrentSong(event)" hidden>
+        <button class="btn danger" onclick="AUDIO_removeFromCurrentSong()" type="button">Remover MP3</button>
+        <div class="mini" id="audioViewStatus" style="align-self:center">—</div>
+      </div>
+      <div class="hint small">
+        O MP3 fica salvo só neste dispositivo (IndexedDB). No backup JSON vai apenas a letra/cifra/tempos.
+      </div>
+    </div>
+
+    <div class="card">
+      <div style="font-weight:900;margin-bottom:8px">Reprodução inteligente (Modo Palco)</div>
+      <div class="row">
+        <button class="btn ok" onclick="PLAYER_openStage()" type="button">Abrir modo Palco</button>
+
+        <button class="btn" id="markBtn" onclick="PLAYER_toggleMark()" type="button">Marcar tempos</button>
+        <button class="btn danger" id="finishMarkBtn" onclick="PLAYER_finishMark()" type="button" style="display:none">Finalizar marcação</button>
+
+        <button class="btn primary" onclick="PLAYER_playTimeline()" type="button">▶ Play timeline (com MP3)</button>
+        <button class="btn" id="stopTimelineBtn" onclick="PLAYER_stopTimeline(true)" type="button" disabled>⏹ Stop</button>
+
+        <div class="field" style="min-width:210px">
+          <label>Slide (segundos por bloco)</label>
+          <input id="slideSecondsInput" type="number" min="1" value="10">
+        </div>
+        <button class="btn primary" onclick="PLAYER_playSlide()" type="button">▶ Play slide</button>
+        <button class="btn" id="stopSlideBtn" onclick="PLAYER_stopSlide(true)" type="button" disabled>⏹ Stop</button>
+      </div>
+
+      <div class="hint small" id="playerHint">
+        Timeline usa o <b>tempo do MP3</b>. Atalhos no palco: <kbd>→</kbd> próximo, <kbd>←</kbd> anterior, <kbd>Esc</kbd> sair.
+      </div>
+    </div>
+
+    <div id="blocksView" class="grid"></div>
+  </section>
+
+  <!-- Backup -->
+  <section id="tab-backup" class="panel">
+    <div class="card">
+      <div style="font-weight:900;margin-bottom:8px">Backup / Restaurar (JSON)</div>
+      <div class="row">
+        <button class="btn primary" onclick="BK_exportJSON()" type="button">Exportar JSON</button>
+        <label class="btn" for="importFile">Importar JSON</label>
+        <input id="importFile" type="file" accept="application/json" onchange="BK_importJSON(event)" hidden>
+        <button class="btn danger" onclick="BK_wipeAll()" type="button">Apagar tudo (local)</button>
+      </div>
+      <div class="hint small" id="backupStatus"></div>
+      <div class="hint small">Obs: o JSON não inclui MP3. Após importar em outro dispositivo, você precisa re-vincular o MP3.</div>
+    </div>
+  </section>
+
+</main>
+
+<!-- Palco -->
+<div class="stage" id="stage">
+  <div class="stage-inner">
+    <div class="stage-top">
+      <div>
+        <div class="stage-title" id="stageSongTitle">GPS Musical</div>
+        <div class="stage-sub" id="stageSongSub">—</div>
+      </div>
+      <div class="row">
+        <button class="btn" onclick="PLAYER_prev()" type="button">←</button>
+        <button class="btn" onclick="PLAYER_next()" type="button">→</button>
+        <button class="btn danger" onclick="PLAYER_closeStage()" type="button">Sair (Esc)</button>
+      </div>
+    </div>
+
+    <div class="progress"><div id="stageProgress"></div></div>
+
+    <div class="stage-card">
+      <div class="row space-between" style="align-items:center">
+        <div>
+          <div class="stage-kind" id="stageKind">—</div>
+          <div class="stage-blocktitle" id="stageBlockTitle">—</div>
+        </div>
+        <div class="mini" id="stageTime">00:00 / 00:00</div>
+      </div>
+
+      <div class="split" style="margin-top:12px">
+        <pre class="bigpre" id="stageChords">—</pre>
+        <pre class="bigpre" id="stageLyrics">—</pre>
+      </div>
+
+      <div style="margin-top:12px">
+        <div id="audioDockStage"></div>
+      </div>
+    </div>
+
+    <div class="hint small" id="stageFooter">—</div>
+  </div>
+</div>
+
+<template id="blockEditorTpl">
+  <div class="block-edit">
+    <div class="block-head">
+      <div class="row grow">
+        <div class="field grow">
+          <label>Tipo do bloco</label>
+          <select class="blockType">
+            <option>Introdução</option><option>Verso</option><option>Pré-refrão</option>
+            <option>Refrão</option><option>Ponte</option><option>Solo</option><option>Final</option><option>Outro</option>
+          </select>
+        </div>
+
+        <div class="field grow">
+          <label>Título do bloco (opcional)</label>
+          <input class="blockTitle" type="text" placeholder="ex: Refrão 2x">
+        </div>
+
+        <div class="field" style="width:170px">
+          <label>Tempo (s) (timeline)</label>
+          <input class="blockTime" type="number" min="0" step="0.1" placeholder="ex: 25.0">
+        </div>
+      </div>
+
+      <div class="row">
+        <button class="icon-btn upBtn" onclick="UI_moveBlock(this,-1)" title="Subir" type="button">▲</button>
+        <button class="icon-btn downBtn" onclick="UI_moveBlock(this,1)" title="Descer" type="button">▼</button>
+        <button class="icon-btn danger delBtn" onclick="UI_removeBlock(this)" title="Remover" type="button">✕</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field grow">
+        <label>Cifra</label>
+        <textarea class="blockChords" rows="6" placeholder="Ex:&#10;G   D/F#   Em&#10;C   D      G"></textarea>
+      </div>
+      <div class="field grow">
+        <label>Letra</label>
+        <textarea class="blockLyrics" rows="6" placeholder="Ex:&#10;Eu sei que você..."></textarea>
+      </div>
+    </div>
+  </div>
+</template>
+
+<audio id="audioMain" controls preload="metadata" style="width:100%"></audio>
+<script src="../shared/remote-store.js"></script>
+<script>
+/* ===== Se houver erro, você vai ver na hora ===== */
+window.onerror = function(msg, src, line, col){
+  alert("GPS Musical: erro no JavaScript.\n\n" + msg + "\n" + (src||"") + "\nlinha: " + line + ", col: " + col);
+  return false;
+};
+
+const STORAGE_KEY = "gps_musical_db_v5";
+const IDB_NAME = "gps_musical_media";
+const IDB_VER = 1;
+const IDB_STORE = "audio"; // key: songId, value: {name, mime, blob}
+const REMOTE_STORE = window.RemoteStoreClient
+  ? window.RemoteStoreClient.create({
+      storeId: "gps-musical",
+      normalize: normalizeSongs,
+      onError: (error, source) => {
+        console.warn("GPS Musical sync error:", source, error);
+      }
+    })
+  : null;
+
+const state = {
+  songs: [],
+  editingId: null,
+  viewingId: null,
+  currentBlockIndex: 0,
+
+  timelineRAF: null,
+  slideTimer: null,
+  playingMode: null,
+
+  markActive: false,
+  markNextIndex: 0,
+
+  // editor audio pending
+  editorAudioMeta: null, // {name,mime}
+  editorAudioBlob: null, // Blob
+};
+
+function uid(){
+  return (crypto?.randomUUID?.() || ("id-" + Math.random().toString(16).slice(2) + "-" + Date.now()));
+}
+function nowISO(){ return new Date().toISOString(); }
+function safeParseJSON(text){ try { return JSON.parse(text); } catch { return null; } }
+function esc(s){
+  return (s ?? "").toString()
+    .replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;")
+    .replaceAll('"',"&quot;").replaceAll("'","&#039;");
+}
+function normalize(str){ return (str || "").toString().toLowerCase().trim(); }
+function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+
+function normalizeSongs(songs){
+  if(!Array.isArray(songs)) return [];
+  return songs.map(s=>({
+    id: s?.id || uid(),
+    title: (s?.title || "").toString(),
+    artist: (s?.artist || "").toString(),
+    key: (s?.key || "").toString(),
+    tags: Array.isArray(s?.tags) ? s.tags.map(tag=>String(tag)) : [],
+    notes: (s?.notes || "").toString(),
+    audioMeta: s?.audioMeta && typeof s.audioMeta === "object"
+      ? {
+          name: (s.audioMeta.name || "").toString(),
+          mime: (s.audioMeta.mime || "").toString(),
+        }
+      : null,
+    blocks: Array.isArray(s?.blocks) ? s.blocks.map(b=>({
+      type: (b?.type || "Bloco").toString(),
+      title: (b?.title || "").toString(),
+      chords: (b?.chords || "").toString(),
+      lyrics: (b?.lyrics || "").toString(),
+      timeSec: Number.isFinite(+b?.timeSec) ? (+b.timeSec) : null,
+    })) : [],
+    createdAt: s?.createdAt || nowISO(),
+    updatedAt: s?.updatedAt || nowISO(),
+  }));
+}
+
+function fmtTime(sec){
+  sec = Math.max(0, Number(sec) || 0);
+  const m = Math.floor(sec/60);
+  const s = Math.floor(sec%60);
+  return String(m).padStart(2,'0') + ":" + String(s).padStart(2,'0');
+}
+
+function getAudio(){ return document.getElementById("audioMain"); }
+
+/* ========= IndexedDB (Áudio) ========= */
+function idbOpen(){
+  return new Promise((resolve, reject)=>{
+    const req = indexedDB.open(IDB_NAME, IDB_VER);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if(!db.objectStoreNames.contains(IDB_STORE)){
+        db.createObjectStore(IDB_STORE);
+      }
+    };
+    req.onsuccess = ()=>resolve(req.result);
+    req.onerror = ()=>reject(req.error || new Error("Falha ao abrir IndexedDB"));
+  });
+}
+
+async function idbPutAudio(songId, payload){
+  const db = await idbOpen();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(IDB_STORE, "readwrite");
+    tx.objectStore(IDB_STORE).put(payload, songId);
+    tx.oncomplete = ()=>{ db.close(); resolve(true); };
+    tx.onerror = ()=>{ db.close(); reject(tx.error || new Error("Falha ao salvar áudio")); };
+  });
+}
+
+async function idbGetAudio(songId){
+  const db = await idbOpen();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(IDB_STORE, "readonly");
+    const req = tx.objectStore(IDB_STORE).get(songId);
+    req.onsuccess = ()=>{ const v=req.result||null; db.close(); resolve(v); };
+    req.onerror = ()=>{ db.close(); reject(req.error || new Error("Falha ao ler áudio")); };
+  });
+}
+
+async function idbDeleteAudio(songId){
+  const db = await idbOpen();
+  return new Promise((resolve, reject)=>{
+    const tx = db.transaction(IDB_STORE, "readwrite");
+    tx.objectStore(IDB_STORE).delete(songId);
+    tx.oncomplete = ()=>{ db.close(); resolve(true); };
+    tx.onerror = ()=>{ db.close(); reject(tx.error || new Error("Falha ao deletar áudio")); };
+  });
+}
+
+/* ===== DB (mÃºsicas em localStorage) ===== */
+function DB_load(){
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if(!raw) return [];
+  const data = safeParseJSON(raw);
+  return normalizeSongs(data);
+}
+function DB_save(){
+  state.songs = normalizeSongs(state.songs);
+  DB_saveLocal();
+  if(REMOTE_STORE) REMOTE_STORE.queueSave(state.songs);
+}
+function DB_saveLocal(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.songs, null, 2));
+}
+function DB_replaceSongs(songs){
+  state.songs = normalizeSongs(songs);
+  DB_saveLocal();
+}
+/* ===== Tabs ===== */
+function UI_showTab(name){
+  ["biblioteca","editor","backup"].forEach(t=>{
+    const b = document.getElementById("tabBtn-"+t);
+    if(b) b.classList.toggle("active", t===name);
+  });
+
+  document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
+  const panel = document.getElementById("tab-"+name);
+  if(panel) panel.classList.add("active");
+}
+
+/* ===== Biblioteca ===== */
+function UI_filteredSongs(){
+  const q = normalize(document.getElementById("searchInput").value);
+  let list = [...state.songs];
+
+  if(q){
+    list = list.filter(s=>{
+      const hay = [
+        s.title, s.artist, s.key, (s.tags||[]).join(","), s.notes,
+        s.audioMeta?.name || "",
+        ...(s.blocks||[]).map(b=>[b.type,b.title,b.chords,b.lyrics,b.timeSec].join(" "))
+      ].join(" ");
+      return normalize(hay).includes(q);
+    });
+  }
+
+  const sort = document.getElementById("sortSelect").value;
+  if(sort==="updated_desc") list.sort((a,b)=>(b.updatedAt||"").localeCompare(a.updatedAt||""));
+  if(sort==="title_asc") list.sort((a,b)=>normalize(a.title).localeCompare(normalize(b.title)));
+  if(sort==="artist_asc") list.sort((a,b)=>normalize(a.artist).localeCompare(normalize(b.artist)));
+
+  return list;
+}
+
+function UI_renderSongList(){
+  const root = document.getElementById("songList");
+  root.innerHTML = "";
+
+  const list = UI_filteredSongs();
+  if(list.length===0){
+    const d = document.createElement("div");
+    d.className="hint";
+    d.textContent="Nenhuma música. Clique em “+ Nova música”.";
+    root.appendChild(d);
+    return;
+  }
+
+  list.forEach(song=>{
+    const el = document.createElement("div");
+    el.className="song-card";
+    el.innerHTML = `
+      <div class="song-title">${esc(song.title||"Sem título")}</div>
+      <div class="song-meta">
+        <span class="pill">${esc(song.artist||"Sem artista")}</span>
+        ${song.key ? `<span class="pill">Tom: ${esc(song.key)}</span>` : ""}
+        <span class="pill">${(song.blocks?.length||0)} blocos</span>
+        ${song.audioMeta ? `<span class="pill">🎧 MP3</span>` : ``}
+      </div>
+    `;
+    el.onclick = ()=>UI_openSongView(song.id);
+    root.appendChild(el);
+  });
+}
+
+/* ===== View ===== */
+function UI_openSongView(id){
+  PLAYER_stopAll();
+  const song = state.songs.find(s=>s.id===id);
+  if(!song) return;
+  state.viewingId = id;
+  state.currentBlockIndex = 0;
+
+  document.getElementById("viewTitle").textContent = song.title || "Sem título";
+  const meta = [];
+  if(song.artist) meta.push(song.artist);
+  if(song.key) meta.push("Tom: " + song.key);
+  if(song.tags?.length) meta.push("Tags: " + song.tags.join(", "));
+  if(song.notes) meta.push("Obs: " + song.notes);
+  document.getElementById("viewMeta").textContent = meta.join(" • ") || "—";
+
+  // carregar áudio do IndexedDB (se tiver)
+  AUDIO_loadSongToPlayers(song).catch(err=>{
+    console.warn(err);
+    document.getElementById("audioViewStatus").textContent = "Falha ao carregar MP3 deste dispositivo.";
+  });
+
+  const root = document.getElementById("blocksView");
+  root.innerHTML = "";
+  (song.blocks||[]).forEach((b,idx)=>{
+    const card = document.createElement("div");
+    card.className="block-card";
+    const t = Number.isFinite(+b.timeSec) ? (+b.timeSec).toFixed(1)+"s" : "sem tempo";
+    card.innerHTML = `
+      <div class="row space-between" style="align-items:center">
+        <div>
+          <div style="font-weight:950">${esc(b.type||"Bloco")}</div>
+          <div class="hint small" style="margin-top:4px">${esc(b.title||("#"+(idx+1)))}</div>
+        </div>
+        <span class="pill">${t}</span>
+      </div>
+      <div class="split" style="margin-top:10px">
+        ${b.chords?.trim()? `<pre class="pre">${esc(b.chords)}</pre>` : `<div class="hint small">Sem cifra.</div>`}
+        ${b.lyrics?.trim()? `<pre class="pre">${esc(b.lyrics)}</pre>` : `<div class="hint small">Sem letra.</div>`}
+      </div>
+    `;
+    root.appendChild(card);
+  });
+
+  UI_showTab("view");
+}
+
+/* ===== Editor ===== */
+function UI_resetEditor(){
+  PLAYER_finishMark();
+  state.editingId = null;
+  state.editorAudioMeta = null;
+  state.editorAudioBlob = null;
+
+  document.getElementById("titleInput").value="";
+  document.getElementById("artistInput").value="";
+  document.getElementById("keyInput").value="";
+  document.getElementById("tagsInput").value="";
+  document.getElementById("notesInput").value="";
+  document.getElementById("blocksEditor").innerHTML="";
+  document.getElementById("deleteSongBtn").disabled = true;
+  document.getElementById("audioFileEditor").value = "";
+  document.getElementById("audioEditorStatus").textContent = "Nenhum áudio vinculado.";
+}
+
+function UI_newSong(){
+  UI_resetEditor();
+  UI_addBlock({type:"Introdução", title:"", timeSec:0, chords:"", lyrics:""});
+  UI_showTab("editor");
+}
+
+function UI_addBlock(block=null){
+  const tpl = document.getElementById("blockEditorTpl");
+  const node = tpl.content.firstElementChild.cloneNode(true);
+
+  if(block){
+    node.querySelector(".blockType").value = block.type || "Verso";
+    node.querySelector(".blockTitle").value = block.title || "";
+    node.querySelector(".blockTime").value = (block.timeSec ?? "");
+    node.querySelector(".blockChords").value = block.chords || "";
+    node.querySelector(".blockLyrics").value = block.lyrics || "";
+  }
+
+  document.getElementById("blocksEditor").appendChild(node);
+}
+
+function UI_removeBlock(btn){ btn.closest(".block-edit").remove(); }
+function UI_moveBlock(btn, dir){
+  const node = btn.closest(".block-edit");
+  if(!node) return;
+  const parent = node.parentElement;
+  const siblings = Array.from(parent.children);
+  const idx = siblings.indexOf(node);
+  const newIdx = idx + dir;
+  if(newIdx < 0 || newIdx >= siblings.length) return;
+  if(dir < 0) parent.insertBefore(node, siblings[newIdx]);
+  else parent.insertBefore(node, siblings[newIdx].nextSibling);
+}
+
+function UI_blocksFromEditor(){
+  return Array.from(document.querySelectorAll("#blocksEditor .block-edit")).map(n=>{
+    const raw = n.querySelector(".blockTime").value;
+    const t = raw==="" ? null : Number(raw);
+    return {
+      type: n.querySelector(".blockType").value,
+      title: n.querySelector(".blockTitle").value.trim(),
+      timeSec: Number.isFinite(t) ? t : null,
+      chords: n.querySelector(".blockChords").value,
+      lyrics: n.querySelector(".blockLyrics").value,
+    };
+  });
+}
+
+async function UI_saveSong(){
+  const title = document.getElementById("titleInput").value.trim();
+  if(!title) return alert("Informe o TÍTULO da música.");
+
+  const baseData = {
+    title,
+    artist: document.getElementById("artistInput").value.trim(),
+    key: document.getElementById("keyInput").value.trim(),
+    tags: document.getElementById("tagsInput").value.split(",").map(t=>t.trim()).filter(Boolean),
+    notes: document.getElementById("notesInput").value.trim(),
+    blocks: UI_blocksFromEditor(),
+    updatedAt: nowISO(),
+  };
+
+  let songId = state.editingId;
+  if(state.editingId){
+    const i = state.songs.findIndex(s=>s.id===state.editingId);
+    if(i>=0){
+      state.songs[i] = {...state.songs[i], ...baseData};
+    }
+  }else{
+    songId = uid();
+    state.songs.unshift({
+      id: songId,
+      createdAt: nowISO(),
+      ...baseData,
+      audioMeta: null
+    });
+  }
+
+  // se o editor tem um mp3 pendente, salva no IndexedDB e coloca meta no song
+  if(state.editorAudioBlob && state.editorAudioMeta){
+    try{
+      await idbPutAudio(songId, { ...state.editorAudioMeta, blob: state.editorAudioBlob });
+      const s = state.songs.find(x=>x.id===songId);
+      if(s) s.audioMeta = {...state.editorAudioMeta};
+      // limpa pendente
+      state.editorAudioBlob = null;
+      state.editorAudioMeta = null;
+    }catch(e){
+      alert("Não foi possível salvar o MP3 no dispositivo (IndexedDB).\n\n" + (e?.message || e));
+    }
+  }
+
+  DB_save();
+  UI_renderSongList();
+  UI_resetEditor();
+  UI_openSongView(songId);
+}
+
+async function UI_editCurrent(){
+  const song = state.songs.find(s=>s.id===state.viewingId);
+  if(!song) return;
+
+  state.editingId = song.id;
+  state.editorAudioMeta = null;
+  state.editorAudioBlob = null;
+
+  document.getElementById("titleInput").value = song.title || "";
+  document.getElementById("artistInput").value = song.artist || "";
+  document.getElementById("keyInput").value = song.key || "";
+  document.getElementById("tagsInput").value = (song.tags||[]).join(", ");
+  document.getElementById("notesInput").value = song.notes || "";
+  document.getElementById("blocksEditor").innerHTML = "";
+  (song.blocks||[]).forEach(b=>UI_addBlock(b));
+  document.getElementById("deleteSongBtn").disabled = false;
+
+  document.getElementById("audioFileEditor").value = "";
+  document.getElementById("audioEditorStatus").textContent =
+    song.audioMeta?.name ? `Vinculado (neste dispositivo): ${song.audioMeta.name}` : "Nenhum áudio vinculado.";
+
+  UI_showTab("editor");
+}
+
+async function UI_deleteSong(){
+  if(!state.editingId) return;
+  const song = state.songs.find(s=>s.id===state.editingId);
+  if(!song) return;
+  if(!confirm(`Excluir "${song.title}"?`)) return;
+
+  // remove audio no IndexedDB também
+  await idbDeleteAudio(song.id).catch(()=>{});
+
+  state.songs = state.songs.filter(s=>s.id!==state.editingId);
+  DB_save();
+  UI_resetEditor();
+  UI_renderSongList();
+  UI_showTab("biblioteca");
+}
+
+/* ===== ÁUDIO ===== */
+window.__gpsAudioObjectUrl = null;
+function AUDIO_dockTo(where){
+  const audio = getAudio();
+  const dockView = document.getElementById("audioDockView");
+  const dockStage = document.getElementById("audioDockStage");
+  if(!dockView || !dockStage || !audio) return;
+  if(where==="stage") dockStage.appendChild(audio);
+  else dockView.appendChild(audio);
+}
+
+async function AUDIO_loadSongToPlayers(song){
+  const audio = getAudio();
+
+  // garante que o player está no lugar certo (view por padrão)
+  AUDIO_dockTo("view");
+
+  // limpa URL anterior
+  if(window.__gpsAudioObjectUrl){
+    URL.revokeObjectURL(window.__gpsAudioObjectUrl);
+    window.__gpsAudioObjectUrl = null;
+  }
+
+  if(song?.audioMeta){
+    const payload = await idbGetAudio(song.id);
+    if(payload?.blob){
+      window.__gpsAudioObjectUrl = URL.createObjectURL(payload.blob);
+      audio.src = window.__gpsAudioObjectUrl;
+      document.getElementById("audioViewStatus").textContent = `Vinculado (dispositivo): ${song.audioMeta.name || "MP3"}`;
+    }else{
+      audio.removeAttribute("src");
+      audio.load();
+      document.getElementById("audioViewStatus").textContent = `MP3 não encontrado neste dispositivo. Re-vincule.`;
+      song.audioMeta = null;
+      DB_save();
+      UI_renderSongList();
+    }
+  }else{
+    audio.removeAttribute("src");
+    audio.load();
+    document.getElementById("audioViewStatus").textContent = "Nenhum MP3 vinculado.";
+  }
+}
+
+
+function AUDIO_attachToEditor(ev){
+  const f = ev.target.files?.[0];
+  if(!f) return;
+  state.editorAudioMeta = { name: f.name, mime: f.type || "audio/mpeg" };
+  state.editorAudioBlob = f;
+  document.getElementById("audioEditorStatus").textContent = `Selecionado: ${f.name} (será salvo ao clicar Salvar)`;
+}
+
+function AUDIO_removeFromEditor(){
+  state.editorAudioMeta = null;
+  state.editorAudioBlob = null;
+  document.getElementById("audioFileEditor").value = "";
+  document.getElementById("audioEditorStatus").textContent = "Nenhum áudio vinculado.";
+}
+
+async function AUDIO_attachToCurrentSong(ev){
+  const f = ev.target.files?.[0];
+  ev.target.value="";
+  if(!f) return;
+  const song = state.songs.find(s=>s.id===state.viewingId);
+  if(!song) return;
+
+  try{
+    await idbPutAudio(song.id, { name: f.name, mime: f.type||"audio/mpeg", blob: f });
+    song.audioMeta = { name: f.name, mime: f.type||"audio/mpeg" };
+    song.updatedAt = nowISO();
+    DB_save();
+    UI_renderSongList();
+    await AUDIO_loadSongToPlayers(song);
+  }catch(e){
+    alert("Não foi possível salvar o MP3 no dispositivo (IndexedDB).\n\n" + (e?.message || e));
+  }
+}
+
+async function AUDIO_removeFromCurrentSong(){
+  const song = state.songs.find(s=>s.id===state.viewingId);
+  if(!song) return;
+  await idbDeleteAudio(song.id).catch(()=>{});
+  song.audioMeta = null;
+  song.updatedAt = nowISO();
+  DB_save();
+  UI_renderSongList();
+  await AUDIO_loadSongToPlayers(song);
+}
+
+/* ===== Player / Palco ===== */
+function PLAYER_song(){ return state.songs.find(s=>s.id===state.viewingId) || null; }
+
+function PLAYER_openStage(){
+  const song = PLAYER_song();
+  if(!song) return;
+
+  document.getElementById("stage").classList.add("active");
+  AUDIO_dockTo("stage");
+  document.getElementById("stageSongTitle").textContent = song.title || "GPS Musical";
+  document.getElementById("stageSongSub").textContent =
+    [song.artist, song.key?("Tom: "+song.key):""].filter(Boolean).join(" • ") || "—";
+  // áudio já foi carregado ao abrir a música; aqui só movemos o player para o palco
+PLAYER_renderStage(state.currentBlockIndex);
+}
+
+function PLAYER_closeStage(){ document.getElementById("stage").classList.remove("active"); AUDIO_dockTo("view"); }
+
+function PLAYER_renderStage(index){
+  const song = PLAYER_song();
+  if(!song) return;
+  const blocks = song.blocks || [];
+  if(blocks.length===0) return;
+
+  const i = clamp(index, 0, blocks.length-1);
+  state.currentBlockIndex = i;
+
+  const b = blocks[i];
+  document.getElementById("stageKind").textContent = b.type || "Bloco";
+  document.getElementById("stageBlockTitle").textContent = b.title || ("#"+(i+1));
+  document.getElementById("stageChords").textContent = (b.chords||"").trim()? b.chords : "—";
+  document.getElementById("stageLyrics").textContent = (b.lyrics||"").trim()? b.lyrics : "—";
+  const t = Number.isFinite(+b.timeSec) ? (+b.timeSec).toFixed(1)+"s" : "sem tempo";
+  document.getElementById("stageFooter").textContent = `Bloco ${i+1}/${blocks.length} • ${t}`;
+
+  const st = getAudio();
+  const dur = Number.isFinite(st.duration) ? st.duration : 0;
+  document.getElementById("stageTime").textContent = `${fmtTime(st.currentTime)} / ${fmtTime(dur)}`;
+}
+
+function PLAYER_prev(){ PLAYER_renderStage(state.currentBlockIndex-1); }
+function PLAYER_next(){ PLAYER_renderStage(state.currentBlockIndex+1); }
+
+function PLAYER_stopAll(){
+  PLAYER_stopTimeline(false);
+  PLAYER_stopSlide(false);
+  document.getElementById("stageProgress").style.width="0%";
+}
+
+function PLAYER_stopTimeline(pauseAudio){
+  if(state.timelineRAF){ cancelAnimationFrame(state.timelineRAF); state.timelineRAF=null; }
+  state.playingMode=null;
+  document.getElementById("stopTimelineBtn").disabled=true;
+  if(pauseAudio){ getAudio().pause(); }
+}
+
+function PLAYER_stopSlide(pauseAudio){
+  if(state.slideTimer){ clearInterval(state.slideTimer); state.slideTimer=null; }
+  state.playingMode=null;
+  document.getElementById("stopSlideBtn").disabled=true;
+  if(pauseAudio){ getAudio().pause(); }
+}
+
+function PLAYER_playTimeline(){
+  PLAYER_stopAll();
+  const song = PLAYER_song();
+  if(!song) return;
+
+  const blocks = song.blocks||[];
+  if(blocks.length===0) return alert("Essa música não tem blocos.");
+
+  const timed = blocks
+    .map((b,idx)=>({idx, t:Number(b.timeSec)}))
+    .filter(x=>Number.isFinite(x.t))
+    .sort((a,b)=>a.t-b.t);
+
+  if(timed.length===0) return alert("Nenhum bloco tem Tempo (s). Use “Marcar tempos” com o MP3 ou preencha no editor.");
+
+  const audio = getAudio();
+  if(!audio.src){
+    alert("Para Play timeline: primeiro vincule um MP3 nesta música.");
+    return;
+  }
+
+  state.playingMode="timeline";
+  document.getElementById("stopTimelineBtn").disabled=false;
+
+  state.currentBlockIndex = timed[0].idx;
+  PLAYER_openStage();
+
+  audio.currentTime = 0;
+  audio.play().catch(()=>{});
+
+  const maxT = timed[timed.length-1].t;
+
+  const tick = ()=>{
+    if(state.playingMode!=="timeline") return;
+    const tNow = audio.currentTime || 0;
+
+    let pick = timed[0];
+    for(const it of timed){ if(it.t<=tNow) pick=it; else break; }
+    if(pick.idx!==state.currentBlockIndex) PLAYER_renderStage(pick.idx);
+
+    const pct = Math.max(0, Math.min(1, tNow/Math.max(1,maxT)));
+    document.getElementById("stageProgress").style.width = (pct*100).toFixed(2)+"%";
+
+    const st = getAudio();
+    const dur = Number.isFinite(st.duration) ? st.duration : (Number.isFinite(audio.duration)?audio.duration:0);
+    document.getElementById("stageTime").textContent = `${fmtTime(tNow)} / ${fmtTime(dur)}`;
+
+    state.timelineRAF = requestAnimationFrame(tick);
+  };
+  state.timelineRAF = requestAnimationFrame(tick);
+}
+
+function PLAYER_playSlide(){
+  PLAYER_stopAll();
+  const song = PLAYER_song();
+  if(!song) return;
+  const blocks = song.blocks||[];
+  if(blocks.length===0) return alert("Essa música não tem blocos.");
+
+  const sec = Math.max(1, Number(document.getElementById("slideSecondsInput").value)||10);
+  state.playingMode="slide";
+  document.getElementById("stopSlideBtn").disabled=false;
+
+  state.currentBlockIndex=0;
+  PLAYER_openStage();
+
+  let started = performance.now();
+  const prog = ()=>{
+    if(state.playingMode!=="slide") return;
+    const elapsed = (performance.now()-started)/1000;
+    const pct = Math.max(0, Math.min(1, elapsed/sec));
+    document.getElementById("stageProgress").style.width = (pct*100).toFixed(2)+"%";
+
+    const st = getAudio();
+    const dur = Number.isFinite(st.duration) ? st.duration : 0;
+    document.getElementById("stageTime").textContent = `${fmtTime(st.currentTime)} / ${fmtTime(dur)}`;
+
+    requestAnimationFrame(prog);
+  };
+  requestAnimationFrame(prog);
+
+  state.slideTimer = setInterval(()=>{
+    started = performance.now();
+    state.currentBlockIndex = (state.currentBlockIndex+1) % blocks.length;
+    PLAYER_renderStage(state.currentBlockIndex);
+  }, sec*1000);
+}
+
+/* ===== Marcar tempos pelo MP3 ===== */
+function PLAYER_toggleMark(){
+  const song = PLAYER_song();
+  if(!song) return;
+  const blocks = song.blocks||[];
+  if(blocks.length===0) return alert("Adicione blocos antes de marcar.");
+
+  const audio = getAudio();
+  if(!audio.src){
+    alert("Para marcar tempos: primeiro vincule um MP3 nesta música.");
+    return;
+  }
+
+  if(!state.markActive){
+    state.markActive = true;
+    state.markNextIndex = 0;
+    document.getElementById("markBtn").textContent="Marcar próximo bloco";
+    document.getElementById("markBtn").classList.add("ok");
+    document.getElementById("finishMarkBtn").style.display = "";
+    document.getElementById("playerHint").textContent =
+      "Marcação ativa: dê play no MP3 (ou ele já está tocando) e clique em “Marcar próximo bloco” no momento certo.";
+
+    audio.currentTime = 0;
+    getAudio().currentTime = 0;
+    audio.play().catch(()=>{});
+
+    PLAYER_openStage();
+    PLAYER_renderStage(0);
+    return;
+  }
+
+  const i = state.markNextIndex;
+  const tNow = Number(audio.currentTime || 0);
+
+  if(i >= blocks.length){
+    PLAYER_finishMark();
+    alert("Marcação concluída! Agora use Play timeline (com MP3).");
+    return;
+  }
+
+  blocks[i].timeSec = Number(tNow.toFixed(1));
+  state.markNextIndex = i + 1;
+
+  song.updatedAt = nowISO();
+  DB_save();
+  UI_openSongView(song.id);
+  PLAYER_openStage();
+  PLAYER_renderStage(Math.min(state.markNextIndex, blocks.length-1));
+}
+
+function PLAYER_finishMark(){
+  if(!state.markActive){
+    document.getElementById("finishMarkBtn").style.display = "none";
+    return;
+  }
+  state.markActive = false;
+  state.markNextIndex = 0;
+  const btn = document.getElementById("markBtn");
+  btn.textContent="Marcar tempos";
+  btn.classList.remove("ok");
+  document.getElementById("finishMarkBtn").style.display = "none";
+  document.getElementById("playerHint").innerHTML =
+    'Timeline usa o <b>tempo do MP3</b>. Atalhos no palco: <kbd>→</kbd> próximo, <kbd>←</kbd> anterior, <kbd>Esc</kbd> sair.';
+}
+
+/* ===== Backup ===== */
+function BK_set(msg){ document.getElementById("backupStatus").textContent = msg||""; }
+
+function BK_exportJSON(){
+  // Exporta só as músicas (sem blobs).
+  const payload = { app:"gps_musical", version:5, exportedAt: nowISO(), songs: state.songs };
+  const blob = new Blob([JSON.stringify(payload,null,2)], {type:"application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href=url;
+  a.download=`gps_musical_backup_${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  BK_set("Backup exportado (sem MP3).");
+}
+
+async function BK_importJSON(ev){
+  const file = ev.target.files?.[0];
+  ev.target.value="";
+  if(!file) return;
+
+  const text = await file.text();
+  const data = safeParseJSON(text);
+  if(!data) return alert("JSON inválido.");
+
+  let songs = null;
+  if(Array.isArray(data)) songs = data;
+  else if(Array.isArray(data.songs)) songs = data.songs;
+  if(!songs) return alert("Arquivo não parece ser do GPS Musical.");
+
+  // Importa músicas. MP3 NÃO é importado (fica para re-vincular)
+  state.songs = songs.map(s=>({
+    id: s.id || uid(),
+    title: (s.title||"").toString(),
+    artist: (s.artist||"").toString(),
+    key: (s.key||"").toString(),
+    tags: Array.isArray(s.tags)? s.tags.map(String): [],
+    notes: (s.notes||"").toString(),
+    audioMeta: null, // força re-vincular no dispositivo atual
+    blocks: Array.isArray(s.blocks)? s.blocks.map(b=>({
+      type:(b?.type||"Bloco").toString(),
+      title:(b?.title||"").toString(),
+      chords:(b?.chords||"").toString(),
+      lyrics:(b?.lyrics||"").toString(),
+      timeSec: Number.isFinite(+b?.timeSec) ? (+b.timeSec) : null
+    })) : [],
+    createdAt: s.createdAt || nowISO(),
+    updatedAt: s.updatedAt || nowISO()
+  }));
+
+  DB_save();
+  UI_renderSongList();
+  BK_set(`Importado: ${state.songs.length} músicas. (Re-vincule os MP3 neste dispositivo)`);
+  UI_showTab("biblioteca");
+}
+
+async function BK_wipeAll(){
+  if(!confirm("Apagar todo o repertório deste dispositivo?")) return;
+  // apaga músicas
+  const ids = state.songs.map(s=>s.id);
+  state.songs = [];
+  DB_save();
+  // apaga áudios no idb
+  for(const id of ids){
+    await idbDeleteAudio(id).catch(()=>{});
+  }
+  UI_resetEditor();
+  UI_renderSongList();
+  BK_set("Tudo apagado.");
+  UI_showTab("biblioteca");
+}
+
+/* ===== Seed + Boot ===== */
+function seedIfEmpty(){
+  if(state.songs.length) return;
+  state.songs = [{
+    id: uid(),
+    title: "Exemplo - Minha Música",
+    artist: "Artista",
+    key: "G",
+    tags: ["exemplo","gps"],
+    notes: "Vincule um MP3 para marcar tempos com precisão.",
+    audioMeta: null,
+    blocks: [
+      { type:"Introdução", title:"", timeSec:0, chords:"G  D  Em  C", lyrics:"" },
+      { type:"Verso", title:"1", timeSec:10, chords:"G              D\nMinha letra aqui...\nEm             C\nContinua aqui...", lyrics:"Minha letra aqui...\nContinua aqui..." },
+      { type:"Refrão", title:"2x", timeSec:25, chords:"C   D   G", lyrics:"Refrão da música..." },
+    ],
+    createdAt: nowISO(),
+    updatedAt: nowISO()
+  }];
+  DB_save();
+}
+
+(function boot(){
+  state.songs = DB_load();
+  seedIfEmpty();
+  UI_renderSongList();
+  UI_resetEditor();
+  UI_showTab("biblioteca");
+
+  window.addEventListener("storage", (e)=>{
+    if(e.key !== STORAGE_KEY || !e.newValue) return;
+    state.songs = DB_load();
+    UI_renderSongList();
+  });
+
+  if(REMOTE_STORE){
+    REMOTE_STORE.bootstrap({
+      getLocalSnapshot: ()=>state.songs,
+      applySnapshot: (snapshot)=>{
+        if(state.editingId) return false;
+        DB_replaceSongs(snapshot);
+        UI_renderSongList();
+
+        if(state.viewingId && state.songs.some(song=>song.id === state.viewingId)){
+          UI_openSongView(state.viewingId);
+        }else if(state.viewingId){
+          state.viewingId = null;
+          UI_showTab("biblioteca");
+        }
+      }
+    });
+
+    window.addEventListener("focus", ()=> REMOTE_STORE.syncNow());
+    document.addEventListener("visibilitychange", ()=>{
+      if(!document.hidden) REMOTE_STORE.syncNow();
+    });
+  }
+
+  // atalhos palco
+  document.addEventListener("keydown", (e)=>{
+    const open = document.getElementById("stage").classList.contains("active");
+    if(!open) return;
+    if(e.key==="Escape") PLAYER_closeStage();
+    if(e.key==="ArrowRight") PLAYER_next();
+    if(e.key==="ArrowLeft") PLAYER_prev();
+  });
+
+  // atualizar relÃ³gio do palco quando Ã¡udio roda
+  const st = getAudio();
+  st.addEventListener("timeupdate", ()=>{
+    const dur = Number.isFinite(st.duration) ? st.duration : 0;
+    document.getElementById("stageTime").textContent = `${fmtTime(st.currentTime)} / ${fmtTime(dur)}`;
+  });
+
+  console.log("GPS Musical v5 (IndexedDB Ã¡udio) carregado OK");
+})();</script>
+
+</body>
+</html>

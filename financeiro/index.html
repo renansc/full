@@ -1,0 +1,750 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Gestão Financeira (JSON + OFX)</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">
+        <img src="logo.png" alt="Logo Nanotech" onerror="this.style.display='none'; this.parentElement.textContent='R$';" />
+      </div>
+      <div>
+        <div class="title">Gestão Financeira</div>
+        <div class="subtitle">JSON (local) + Importação OFX + Conciliação + AP/AR</div>
+      </div>
+    </div>
+
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-view="dashboard">Dashboard</button>
+      <button class="tab" data-view="lancamentos">Lançamentos</button>
+      <button class="tab" data-view="contas">Contas</button>
+      <button class="tab" data-view="categorias">Categorias</button>
+      <button class="tab" data-view="importar">Importar OFX</button>
+      <button class="tab" data-view="conciliacao">Conciliação</button>
+      <button class="tab" data-view="compras">Compras</button>
+      <button class="tab" data-view="pagar">Contas a Pagar</button>
+      <button class="tab" data-view="receber">Contas a Receber</button>
+      <button class="tab" data-view="config">Config</button>
+    </nav>
+  </header>
+
+  <main class="container">
+    <!-- DASHBOARD -->
+    <section class="view" id="view-dashboard">
+      <div class="grid2">
+        <div class="card">
+          <div class="cardhead">
+            <h2>Resumo</h2>
+            <div class="row gap">
+              <select id="dashConta"></select>
+              <input type="month" id="dashMes" />
+              <button class="btn" id="btnHoje">Mês atual</button>
+            </div>
+          </div>
+          <div class="kpis">
+            <div class="kpi">
+              <div class="kpiLabel">Receitas</div>
+              <div class="kpiValue" id="kpiReceitas">R$ 0,00</div>
+            </div>
+            <div class="kpi">
+              <div class="kpiLabel">Despesas</div>
+              <div class="kpiValue" id="kpiDespesas">R$ 0,00</div>
+            </div>
+            <div class="kpi">
+              <div class="kpiLabel">Saldo do mês</div>
+              <div class="kpiValue" id="kpiSaldoMes">R$ 0,00</div>
+            </div>
+            <div class="kpi">
+              <div class="kpiLabel">Saldo da conta</div>
+              <div class="kpiValue" id="kpiSaldoConta">R$ 0,00</div>
+            </div>
+          </div>
+          <div class="muted" style="margin-top:10px">
+            Dica: use AP/AR para contas a pagar/receber e vincule no OFX pela Conciliação.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="cardhead">
+            <h2>Por categoria (mês)</h2>
+            <div class="muted">Agrupamento das despesas do mês selecionado.</div>
+          </div>
+          <div id="boxCategoriasMes" class="list compact"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- LANÇAMENTOS -->
+    <section class="view hidden" id="view-lancamentos">
+      <div class="card">
+        <div class="cardhead">
+          <h2>Lançamentos</h2>
+          <div class="row gap wrap">
+            <select id="fConta"></select>
+            <input type="date" id="fIni" />
+            <input type="date" id="fFim" />
+            <input type="text" id="fBusca" placeholder="Buscar descrição..." />
+            <button class="btn" id="btnFiltrar">Filtrar</button>
+            <button class="btn primary" id="btnNovoLanc">+ Novo</button>
+          </div>
+        </div>
+
+        <div class="tableWrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Conta</th>
+                <th>Tipo</th>
+                <th>Categoria</th>
+                <th>Descrição</th>
+                <th class="right">Valor</th>
+                <th>Conciliado</th>
+                <th class="right">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tbLanc"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal hidden" id="modalLanc">
+        <div class="modalBox">
+          <div class="modalHead">
+            <h3 id="modalLancTitle">Novo lançamento</h3>
+            <button class="iconBtn" id="btnFecharModalLanc">✕</button>
+          </div>
+
+          <div class="formGrid">
+            <label>Data
+              <input type="date" id="lData">
+            </label>
+            <label>Conta
+              <select id="lConta"></select>
+            </label>
+            <label>Tipo
+              <select id="lTipo">
+                <option value="DESPESA">DESPESA</option>
+                <option value="RECEITA">RECEITA</option>
+              </select>
+            </label>
+            <label>Categoria
+              <select id="lCategoria"></select>
+            </label>
+            <label class="span2">Descrição
+              <input type="text" id="lDesc" placeholder="Ex.: Combustível, Aluguel, Venda...">
+            </label>
+            <label>Valor (R$)
+              <input type="number" id="lValor" step="0.01" inputmode="decimal">
+            </label>
+            <label>Conciliado?
+              <select id="lConc">
+                <option value="0">Não</option>
+                <option value="1">Sim</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="row end gap">
+            <button class="btn" id="btnCancelarLanc">Cancelar</button>
+            <button class="btn primary" id="btnSalvarLanc">Salvar</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONTAS -->
+    <section class="view hidden" id="view-contas">
+      <div class="grid2">
+        <div class="card">
+          <div class="cardhead">
+            <h2>Contas</h2>
+            <button class="btn primary" id="btnNovaConta">+ Nova</button>
+          </div>
+          <div id="listaContas" class="list"></div>
+        </div>
+
+        <div class="card">
+          <div class="cardhead">
+            <h2>OFX importados</h2>
+            <div class="muted">Histórico das importações (para conciliação).</div>
+          </div>
+          <div id="listaImports" class="list"></div>
+        </div>
+      </div>
+
+      <div class="modal hidden" id="modalConta">
+        <div class="modalBox">
+          <div class="modalHead">
+            <h3 id="modalContaTitle">Nova conta</h3>
+            <button class="iconBtn" id="btnFecharModalConta">✕</button>
+          </div>
+
+          <div class="formGrid">
+            <label class="span2">Nome
+              <input type="text" id="cNome" placeholder="Ex.: Itaú CC, Nubank, Caixa, Carteira...">
+            </label>
+            <label>Moeda
+              <input type="text" id="cMoeda" value="BRL" />
+            </label>
+            <label>Saldo inicial (R$)
+              <input type="number" id="cSaldo" step="0.01" inputmode="decimal" />
+            </label>
+          </div>
+
+          <div class="row end gap">
+            <button class="btn" id="btnCancelarConta">Cancelar</button>
+            <button class="btn primary" id="btnSalvarConta">Salvar</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CATEGORIAS -->
+    <section class="view hidden" id="view-categorias">
+      <div class="card">
+        <div class="cardhead">
+          <h2>Categorias</h2>
+          <div class="row gap wrap">
+            <input type="text" id="catNome" placeholder="Nova categoria (ex.: Alimentação)" />
+            <select id="catTipo">
+              <option value="DESPESA">DESPESA</option>
+              <option value="RECEITA">RECEITA</option>
+            </select>
+            <button class="btn primary" id="btnAddCat">Adicionar</button>
+          </div>
+        </div>
+        <div id="listaCats" class="list"></div>
+      </div>
+    </section>
+
+    <!-- IMPORTAR OFX -->
+    <section class="view hidden" id="view-importar">
+      <div class="card">
+        <div class="cardhead">
+          <h2>Importar OFX</h2>
+          <div class="muted">
+            Selecione uma conta e importe o arquivo OFX do banco. As transações importadas vão para a Conciliação.
+          </div>
+        </div>
+
+        <div class="row gap wrap">
+          <select id="ofxConta"></select>
+          <input type="file" id="ofxFile" accept=".ofx,.txt,.qfx,.xml" />
+          <button class="btn primary" id="btnImportarOFX">Importar</button>
+        </div>
+
+        <div class="divider"></div>
+
+        <h3 class="h3">Prévia (última importação)</h3>
+        <div class="tableWrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Descrição</th>
+                <th class="right">Valor</th>
+                <th>ID banco</th>
+              </tr>
+            </thead>
+            <tbody id="tbOfxPreview"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONCILIAÇÃO -->
+    <section class="view hidden" id="view-conciliacao">
+      <div class="card">
+        <div class="cardhead">
+          <h2>Conciliação</h2>
+          <div class="row gap wrap">
+            <select id="concConta"></select>
+            <select id="concImport"></select>
+            <button class="btn" id="btnSugerir">Sugerir matches</button>
+            <button class="btn" id="btnCriarLancDoBanco">Criar lançamentos p/ itens não conciliados</button>
+          </div>
+        </div>
+
+        <div class="grid3">
+          <div>
+            <h3 class="h3">Transações do banco (importadas)</h3>
+            <div id="bankList" class="list"></div>
+          </div>
+
+          <div>
+            <h3 class="h3">Títulos (AP/AR) em aberto</h3>
+            <div class="muted">Selecione um título e vincule com a transação do banco (vai baixar e gerar lançamento).</div>
+            <div id="titList" class="list"></div>
+            <div class="row gap wrap" style="margin-top:10px">
+              <button class="btn primary" id="btnVincularTitulo">Vincular ao Título</button>
+              <button class="btn" id="btnCriarTitulosDoOFX">Criar Títulos a partir do OFX</button>
+            </div>
+          </div>
+
+          <div>
+            <h3 class="h3">Lançamentos do sistema</h3>
+            <div id="sysList" class="list"></div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="row gap wrap">
+          <div class="pill">Banco ↔ Lançamento: 1) clique banco 2) clique lançamento</div>
+          <button class="btn primary" id="btnVincular">Vincular (conciliar)</button>
+          <button class="btn" id="btnDesvincular">Desvincular</button>
+        </div>
+
+        <div class="muted" id="concStatus" style="margin-top:10px"></div>
+      </div>
+    </section>
+
+    <!-- CONTAS A PAGAR -->
+    <section class="view hidden" id="view-pagar">
+      <div class="card">
+        <div class="cardhead">
+          <h2>Contas a Pagar (AP)</h2>
+          <div class="row gap wrap">
+            <select id="apConta"></select>
+            <select id="apStatus">
+              <option value="ALL">Todos</option>
+              <option value="ABERTO">Em aberto</option>
+              <option value="BAIXADO">Baixado</option>
+              <option value="CANCELADO">Cancelado</option>
+            </select>
+            <input type="date" id="apIni" />
+            <input type="date" id="apFim" />
+            <input type="text" id="apBusca" placeholder="Buscar (descrição/pessoa/centro custo)..." />
+            <button class="btn" id="btnFiltrarAP">Filtrar</button>
+            <button class="btn primary" id="btnNovoAP">+ Novo AP</button>
+          </div>
+        </div>
+
+        <div class="tableWrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Venc.</th>
+                <th>Conta</th>
+                <th>Centro de custo</th>
+                <th>Fornecedor</th>
+                <th>Descrição</th>
+                <th>Pagamento</th>
+                <th class="right">Valor</th>
+                <th>Status</th>
+                <th>Anexos</th>
+                <th class="right">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tbAP"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONTAS A RECEBER -->
+    <section class="view hidden" id="view-receber">
+      <div class="card">
+        <div class="cardhead">
+          <h2>Contas a Receber (AR)</h2>
+          <div class="row gap wrap">
+            <select id="arConta"></select>
+            <select id="arStatus">
+              <option value="ALL">Todos</option>
+              <option value="ABERTO">Em aberto</option>
+              <option value="BAIXADO">Baixado</option>
+              <option value="CANCELADO">Cancelado</option>
+            </select>
+            <input type="date" id="arIni" />
+            <input type="date" id="arFim" />
+            <input type="text" id="arBusca" placeholder="Buscar (descrição/pessoa/centro custo)..." />
+            <button class="btn" id="btnFiltrarAR">Filtrar</button>
+            <button class="btn primary" id="btnNovoAR">+ Novo AR</button>
+          </div>
+        </div>
+
+        <div class="tableWrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Venc.</th>
+                <th>Conta</th>
+                <th>Centro de custo</th>
+                <th>Cliente</th>
+                <th>Descrição</th>
+                <th>Pagamento</th>
+                <th class="right">Valor</th>
+                <th>Status</th>
+                <th>Anexos</th>
+                <th class="right">Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tbAR"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SOLICITACOES DE COMPRA -->
+    <section class="view hidden" id="view-compras">
+      <div class="card">
+        <div class="cardhead">
+          <h2>Solicitacoes de compra</h2>
+          <div class="row gap wrap">
+            <select id="cpStatus">
+              <option value="ALL">Todos</option>
+              <option value="PENDENTE">Pendente</option>
+              <option value="APROVADO">Aprovado</option>
+              <option value="REPROVADO">Reprovado</option>
+              <option value="CANCELADO">Cancelado</option>
+            </select>
+            <input type="text" id="cpBusca" placeholder="Buscar produto, fornecedor ou justificativa..." />
+            <button class="btn" id="btnFiltrarCompras">Filtrar</button>
+            <button class="btn primary" id="btnNovaCompra">+ Nova solicitacao</button>
+          </div>
+        </div>
+
+        <div class="tableWrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Solic.</th>
+                <th>Produto</th>
+                <th>Fornecedor</th>
+                <th>Conta</th>
+                <th>Pagamento</th>
+                <th>Venc.</th>
+                <th class="right">Valor</th>
+                <th>Status</th>
+                <th>AP</th>
+                <th class="right">Acoes</th>
+              </tr>
+            </thead>
+            <tbody id="tbCompras"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal hidden" id="modalCompra">
+        <div class="modalBox">
+          <div class="modalHead">
+            <h3 id="modalCompraTitle">Nova solicitacao de compra</h3>
+            <button class="iconBtn" id="btnFecharModalCompra">×</button>
+          </div>
+
+          <div class="formGrid">
+            <label>Data da solicitacao
+              <input type="date" id="pcData">
+            </label>
+            <label>Fornecedor
+              <input type="text" id="pcFornecedor" placeholder="Ex.: Loja X, Mercado Y...">
+            </label>
+
+            <label class="span2">Produto / servico
+              <input type="text" id="pcDesc" placeholder="Ex.: Notebook, toner, assinatura, equipamento...">
+            </label>
+
+            <label>Link do produto
+              <input type="url" id="pcProdutoUrl" placeholder="https://...">
+            </label>
+            <label>Foto do produto (URL)
+              <input type="url" id="pcFotoUrl" placeholder="https://.../imagem.jpg">
+            </label>
+
+            <label class="span2">Justificativa
+              <textarea id="pcJustificativa" rows="4" placeholder="Explique por que a compra precisa ser aprovada."></textarea>
+            </label>
+
+            <div class="span2 aiAssistBar">
+              <button class="btn" id="btnPesquisaIA" type="button">Pesquisa I.A</button>
+              <div class="muted aiAssistStatus" id="compraAiStatus">
+                Descreva o produto e clique em Pesquisa I.A para varrer lojas online e organizar links por preco e aderencia.
+              </div>
+            </div>
+
+            <label>Conta do contas a pagar
+              <select id="pcConta"></select>
+            </label>
+            <label>Categoria
+              <select id="pcCategoria"></select>
+            </label>
+
+            <label>Centro de custo
+              <input type="text" id="pcCentroCusto" placeholder="Ex.: Administrativo, Operacao...">
+            </label>
+            <label>Forma de pagamento
+              <input type="text" id="pcFormaPagamento" placeholder="Ex.: PIX, boleto, cartao, transferencia...">
+            </label>
+
+            <label>Vencimento
+              <input type="date" id="pcVenc">
+            </label>
+            <label>Valor estimado (R$)
+              <input type="number" id="pcValor" step="0.01" inputmode="decimal">
+            </label>
+
+            <label class="span2">Observacoes internas
+              <textarea id="pcObs" rows="3" placeholder="Informacoes adicionais da solicitacao."></textarea>
+            </label>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="grid2">
+            <div class="previewBox">
+              <div class="muted" style="margin-bottom:6px"><b>Imagem do produto</b></div>
+              <div id="compraFotoPreview" class="muted">Informe uma URL de imagem para visualizar a foto do produto.</div>
+            </div>
+            <div class="previewBox">
+              <div class="muted" style="margin-bottom:6px"><b>Link e status</b></div>
+              <div id="compraLinkPreview" class="muted">Informe o link do produto para facilitar a aprovacao.</div>
+              <div class="divider"></div>
+              <div id="compraStatusInfo" class="muted">A solicitacao nasce como pendente. A aprovacao gera automaticamente um titulo em contas a pagar.</div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="previewBox aiResultsPanel">
+            <div class="row gap wrap" style="justify-content:space-between">
+              <div>
+                <div><b>Resultados da pesquisa inteligente</b></div>
+                <div class="muted">Use uma oferta para preencher fornecedor, link e valor estimado.</div>
+              </div>
+            </div>
+            <div id="compraAiResultados" class="muted" style="margin-top:10px">
+              Nenhuma pesquisa realizada ainda.
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="row end gap wrap">
+            <button class="btn" id="btnCancelarCompra">Cancelar</button>
+            <button class="btn primary" id="btnSalvarCompra">Salvar solicitacao</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MODAL TÍTULO -->
+    <div class="modal hidden" id="modalTitulo">
+      <div class="modalBox">
+        <div class="modalHead">
+          <h3 id="modalTituloTitle">Novo título</h3>
+          <button class="iconBtn" id="btnFecharModalTitulo">✕</button>
+        </div>
+
+        <div class="formGrid">
+          <label>Tipo
+            <select id="tTipo">
+              <option value="AP">AP (Pagar)</option>
+              <option value="AR">AR (Receber)</option>
+            </select>
+          </label>
+
+          <label>Status
+            <select id="tStatus">
+              <option value="ABERTO">ABERTO</option>
+              <option value="BAIXADO">BAIXADO</option>
+              <option value="CANCELADO">CANCELADO</option>
+            </select>
+          </label>
+
+          <label>Vencimento
+            <input type="date" id="tVenc">
+          </label>
+
+          <label>Conta
+            <select id="tConta"></select>
+          </label>
+
+          <label>Centro de custo
+            <input type="text" id="tCentroCusto" placeholder="Ex.: Adm, Operação, Filial A...">
+          </label>
+
+          <label>Pessoa (Fornecedor/Cliente)
+            <input type="text" id="tPessoa" placeholder="Ex.: Posto X / Cliente Y">
+          </label>
+
+          <label class="span2">Descrição
+            <input type="text" id="tDesc" placeholder="Ex.: NF 1234, aluguel, prestação...">
+          </label>
+
+          <label>Categoria
+            <select id="tCategoria"></select>
+          </label>
+
+          <label><span id="tValorLabel">Valor (R$)</span>
+            <input type="number" id="tValor" step="0.01" inputmode="decimal">
+          </label>
+
+          <label>Forma de pagamento
+            <input type="text" id="tFormaPagamento" placeholder="Ex.: PIX, boleto, transferencia, cartao...">
+          </label>
+
+          <label class="span2">Observação
+            <input type="text" id="tObs" placeholder="Opcional">
+          </label>
+
+          <div class="span2 sectionBox" id="parcelamentoBox">
+            <div class="row gap wrap" style="justify-content:space-between">
+              <label class="toggleLabel">
+                <input type="checkbox" id="tGerarParcelas" />
+                <span>Gerar parcelas de uma vez</span>
+              </label>
+              <div class="muted" id="parcelamentoHint">Disponível para novos lançamentos. O valor será tratado como total.</div>
+            </div>
+            <div class="formGrid nestedGrid" id="parcelamentoCampos">
+              <label>Qtd. parcelas
+                <input type="number" id="tParcelas" min="2" max="60" value="2" inputmode="numeric">
+              </label>
+              <label>Primeira parcela
+                <input type="date" id="tPrimeiraParcela">
+              </label>
+            </div>
+            <div class="muted" id="parcelamentoResumo">As parcelas serão geradas mensalmente a partir do primeiro vencimento.</div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="row gap wrap" style="align-items:flex-start">
+          <div style="flex:1">
+            <div class="muted" style="margin-bottom:6px"><b>Anexos</b> (PDF/Imagem). Ficam salvos na pasta dados/ do servidor.</div>
+            <div class="row gap wrap">
+              <input type="file" id="tAnexoFile" accept=".pdf,image/*" />
+              <button class="btn" id="btnAddAnexo">Adicionar anexo</button>
+            </div>
+            <div id="listaAnexos" class="list compact"></div>
+          </div>
+
+          <div style="flex:1">
+            <div class="muted" style="margin-bottom:6px"><b>Prévia</b></div>
+            <div class="previewBox" id="anexoPreview">Selecione um anexo para visualizar.</div>
+            <div class="divider"></div>
+            <div class="muted" style="margin-bottom:6px"><b>QR / código / linha digitável</b></div>
+            <div class="previewBox codeBox" id="anexoCodePreview">Selecione uma imagem ou PDF para tentar ler QR Code, linha digitável ou código de barras.</div>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="row end gap wrap">
+          <button class="btn" id="btnCancelarTitulo">Cancelar</button>
+          <button class="btn" id="btnBaixarTitulo">Baixar (gerar lançamento)</button>
+          <button class="btn primary" id="btnSalvarTitulo">Salvar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- CONFIG -->
+    <section class="view hidden" id="view-config">
+      <div class="grid2">
+        <div class="card">
+          <div class="cardhead">
+            <h2>Backup / Restauração</h2>
+            <div class="muted">Exporta/Importa o JSON do sistema.</div>
+          </div>
+
+          <div class="row gap wrap">
+            <button class="btn primary" id="btnExportJSON">Exportar JSON</button>
+            <input type="file" id="jsonFile" accept=".json" />
+            <button class="btn" id="btnImportJSON">Importar JSON</button>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="row gap wrap">
+            <button class="btn danger" id="btnReset">Limpar tudo</button>
+            <span class="muted">Cuidado: apaga dados locais.</span>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="cardhead">
+            <h2>Regras de conciliação</h2>
+            <div class="muted">Tolerância de datas/valores para sugerir matches.</div>
+          </div>
+
+          <div class="formGrid">
+            <label>Tolerância de dias
+              <input type="number" id="cfgTolDias" min="0" max="30" />
+            </label>
+            <label>Tolerância de valor (R$)
+              <input type="number" id="cfgTolValor" step="0.01" min="0" />
+            </label>
+            <label class="span2">Score mínimo (0–100)
+              <input type="number" id="cfgScoreMin" min="0" max="100" />
+            </label>
+          </div>
+
+          <div class="row end gap">
+            <button class="btn primary" id="btnSalvarCfg">Salvar config</button>
+          </div>
+
+          <div class="muted" style="margin-top:10px">
+            Sugestão: tol dias 3, tol valor 0,50, score mínimo 60.
+          </div>
+        </div>
+        
+        <div class="card">
+          <div class="cardhead">
+            <h2>Avisos por e-mail</h2>
+            <div class="muted">Usa SMTP configurado no servidor para avisar sobre vencimentos.</div>
+          </div>
+
+          <div class="row gap wrap">
+            <button class="btn primary" id="btnRodarAvisos">Enviar avisos agora</button>
+            <span class="muted" id="statusAvisos">O sistema tenta disparar os avisos ao abrir a tela e tambem permite agendamento externo.</span>
+          </div>
+
+          <div class="muted" style="margin-top:10px">
+            Configure no servidor: SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD, FINANCE_REMINDER_TO e FINANCE_REMINDER_FROM.
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="cardhead">
+            <h2>Diagnostico da pesquisa</h2>
+            <div class="muted">Verifica o mecanismo Python de scraping e se a busca web esta respondendo no servidor.</div>
+          </div>
+
+          <div class="row gap wrap">
+            <span class="badge warn" id="aiStatusBadge">Verificando...</span>
+            <span class="muted" id="aiStatusCheckedAt">Aguardando leitura do servidor.</span>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="statusBox" id="aiStatusMessage">Carregando diagnostico da I.A...</div>
+
+          <div class="diagGrid" id="aiStatusDetails">
+            <div class="diagItem">
+              <div class="diagLabel">Chave</div>
+              <div class="diagValue">-</div>
+            </div>
+          </div>
+
+          <div class="row gap wrap" style="margin-top:14px">
+            <button class="btn primary" id="btnAtualizarAiStatus">Atualizar status</button>
+            <span class="muted">Se a busca falhar aqui, o problema esta no servidor ou na conectividade do scraping, nao no botao da pesquisa.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span class="muted">Os dados ficam no servidor e tambem em cache no navegador. Anexos grandes ainda podem pesar o JSON salvo.</span>
+  </footer>
+
+  <script src="../shared/remote-store.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

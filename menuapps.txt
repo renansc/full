@@ -1,0 +1,9 @@
+APP		EMPRESA			EMAIL						URL
+RIS+PACS	LAB.STA TEREZINHA	imagemsterezinha@gmail.com			https://rispacsfull.onrender.com/
+RIS+CLN		CARDIO CLIN								https://cardioclin.onrender.com/
+CRM+VOIP+CAM	RIO BRANCO								https://206.62.65.68:80
+
+[menuapps]
+RIS+BPA		srv/api-firebird							https://nanotech-lvoz.onrender.com/bpa
+financeiro	srv/financeiro		solucoestecnologicasrenan@gmail.com		https://nanotech-lvoz.onrender.com/financeiro
+gpsmusical 	srv/gpsmusical		solucoestecnologicasrenan@gmail.com		https://nanotech-lvoz.onrender.com/gpsmusical

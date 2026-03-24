@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Prontuario BPA | Renan SC</title>
+  <meta
+    name="description"
+    content="Gerenciador visual para atendimentos, cadastros e insercoes no BPA por meio do backend local."
+  />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="prontuario.css" />
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <div class="brand-block">
+        <a class="back-link" href="../index.html">Voltar ao portal</a>
+        <div>
+          <span class="eyebrow">Saude e BPA</span>
+          <h1>Prontuario ambulatorial</h1>
+          <p>
+            Interface unificada para consultar tabelas, inserir dados e operar o BPA por meio do proxy local do portal.
+          </p>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button class="ghost-btn" id="btnHealth" type="button">Testar conexao</button>
+        <a class="ghost-btn" href="http://127.0.0.1:5002" target="_blank" rel="noreferrer">Abrir servico BPA</a>
+      </div>
+    </header>
+
+    <main class="container">
+      <section class="hero card">
+        <div class="hero-copy">
+          <span class="eyebrow">Painel de operacao</span>
+          <h2>Cadastros e atendimentos com leitura e gravacao no Firebird sem sair do portal.</h2>
+          <p>
+            Esta pagina conversa com o backend local do site, que por sua vez faz o proxy para o servico BPA. Assim o
+            navegador nao precisa falar com o Firebird diretamente.
+          </p>
+
+          <div class="quick-actions" id="quickTables"></div>
+        </div>
+
+        <div class="hero-side">
+          <div class="metric-stack">
+            <article class="metric-card">
+              <span>Status</span>
+              <strong id="healthLabel">Aguardando teste</strong>
+              <p id="healthDetail">Use o botao acima para confirmar o backend BPA.</p>
+            </article>
+            <article class="metric-card">
+              <span>Tabelas</span>
+              <strong id="tableCount">0</strong>
+              <p>Lista carregada dinamicamente a partir do Firebird.</p>
+            </article>
+            <article class="metric-card">
+              <span>Banco alvo</span>
+              <strong id="dbLabel">Padrao do servidor</strong>
+              <p>Voce pode informar um caminho customizado abaixo se precisar.</p>
+            </article>
+          </div>
+
+          <label class="field">
+            <span>Caminho opcional do banco</span>
+            <input
+              id="dbPath"
+              placeholder="Ex.: C:/BPA/BPAMAG.GDB"
+              autocomplete="off"
+            />
+          </label>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <article class="card data-panel">
+          <div class="panel-head">
+            <div>
+              <span class="eyebrow">Consulta</span>
+              <h3>Explorador de tabelas BPA</h3>
+            </div>
+            <button class="ghost-btn" id="btnReload" type="button">Recarregar tabelas</button>
+          </div>
+
+          <div class="toolbar">
+            <label class="field">
+              <span>Tabela</span>
+              <select id="tables"></select>
+            </label>
+
+            <label class="field small">
+              <span>Limite</span>
+              <input id="limit" type="number" value="50" min="1" max="500" />
+            </label>
+
+            <label class="field small">
+              <span>Offset</span>
+              <input id="offset" type="number" value="0" min="0" />
+            </label>
+
+            <button class="primary-btn" id="btnLoadRows" type="button">Carregar dados</button>
+          </div>
+
+          <div class="meta" id="meta"></div>
+
+          <div class="table-wrap">
+            <table id="dataTable">
+              <thead id="thead"></thead>
+              <tbody id="tbody"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="card form-panel">
+          <div class="panel-head">
+            <div>
+              <span class="eyebrow">Formulario</span>
+              <h3>Inserir, editar e revisar</h3>
+            </div>
+            <div class="state-pill" id="formHint">Selecione uma tabela para comecar.</div>
+          </div>
+
+          <form id="form" novalidate>
+            <div id="formFields" class="form-grid"></div>
+
+            <div class="actions">
+              <button class="ghost-btn" id="btnClear" type="button">Limpar</button>
+              <button class="danger-btn" id="btnDelete" type="button" disabled>Excluir</button>
+              <button class="primary-btn" id="btnSave" type="submit">Salvar</button>
+            </div>
+          </form>
+
+          <div class="note">
+            Este modulo ja permite insercao no BPA usando o backend existente. Para um prontuario totalmente clinico,
+            com regras de negocio e fluxo especifico, o proximo passo e mapear a tabela exata do atendimento no schema.
+          </div>
+        </article>
+      </section>
+    </main>
+
+    <div class="toast" id="toast" aria-live="polite"></div>
+  </div>
+
+  <script src="prontuario.js"></script>
+</body>
+</html>
