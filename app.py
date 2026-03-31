@@ -73,6 +73,12 @@ DEFAULT_SITE_APPS = [
         "descricao": "Gerencie repertorio, letras e blocos musicais.",
         "href": "/gpsmusical/",
     },
+    {
+        "slug": "tatoo",
+        "nome": "Tatoo Studio",
+        "descricao": "Cadastro, consentimento, assinatura digital e contratos em PDF.",
+        "href": "/tatoo/",
+    },
 ]
 
 BPA_API_BASE_URL = str(os.getenv("BPA_API_BASE_URL", "http://127.0.0.1:5002")).strip().rstrip("/")
