@@ -10,6 +10,7 @@ import re
 import secrets
 import smtplib
 import ssl
+import textwrap
 import unicodedata
 import urllib.error
 import urllib.request
@@ -183,6 +184,15 @@ def resolve_attachment_dir() -> Path:
         attachment_dir = BASE_DIR / attachment_dir
     attachment_dir.mkdir(parents=True, exist_ok=True)
     return attachment_dir
+
+
+def resolve_contracts_dir() -> Path:
+    configured = os.getenv("TATOO_CONTRACTS_DIR") or os.getenv("CONTRACTS_DIR")
+    contracts_dir = Path(configured).expanduser() if configured else BASE_DIR / "contratos"
+    if not contracts_dir.is_absolute():
+        contracts_dir = BASE_DIR / contracts_dir
+    contracts_dir.mkdir(parents=True, exist_ok=True)
+    return contracts_dir
 
 
 def resolve_sqlite_path(value: str, data_dir: Path) -> Path:
@@ -409,6 +419,34 @@ def ensure_within_directory(root: Path, candidate: Path) -> Path:
 
 def build_attachment_url(relative_path: str) -> str:
     return f"/api/finance/attachments/{quote(relative_path, safe='/')}"
+
+
+def build_contract_url(relative_path: str) -> str:
+    return f"/api/tatoo/contracts/{quote(relative_path, safe='/')}"
+
+
+def normalize_contract_datetime(value: str | None) -> datetime:
+    raw_value = as_text(value)
+    if not raw_value:
+        return datetime.now(timezone.utc)
+
+    normalized = raw_value.replace("Z", "+00:00")
+    try:
+        return datetime.fromisoformat(normalized)
+    except ValueError:
+        return datetime.now(timezone.utc)
+
+
+def contract_folder_name(signed_at: str | None) -> str:
+    return normalize_contract_datetime(signed_at).strftime("%Y-%m")
+
+
+def build_contract_filename(consent_id: str, signer_name: str, signed_at: str | None, signature_mode: str) -> str:
+    signed_prefix = compact_slug(normalize_contract_datetime(signed_at).strftime("%Y-%m-%d"), fallback="sem-data", max_length=16)
+    signer_slug = compact_slug(signer_name, fallback="sem-assinante", max_length=40)
+    consent_slug = compact_slug(consent_id, fallback="consentimento", max_length=40)
+    mode_slug = compact_slug(signature_mode, fallback="assinatura", max_length=24)
+    return f"{signed_prefix}_{signer_slug}_{consent_slug}_{mode_slug}.pdf"
 
 
 def decode_attachment_payload(raw_value: str) -> dict[str, Any]:
@@ -1047,8 +1085,282 @@ def decode_pdf_codes(content: bytes) -> list[dict[str, str]]:
         document.close()
 
 
+def normalize_contract_payload(payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise AppError(400, "Envie um JSON valido com os dados do contrato.")
+
+    signature = payload.get("signature") if isinstance(payload.get("signature"), dict) else {}
+    client = payload.get("client") if isinstance(payload.get("client"), dict) else {}
+    contractor = payload.get("contractor") if isinstance(payload.get("contractor"), dict) else {}
+    session_info = payload.get("session") if isinstance(payload.get("session"), dict) else {}
+
+    consent_id = as_text(payload.get("consentId"))
+    if not consent_id:
+        raise AppError(400, "Consentimento invalido para gerar o PDF.")
+
+    signer_name = as_text(signature.get("signerName"))
+    if not signer_name:
+        raise AppError(400, "Informe o nome do assinante.")
+
+    signer_document = as_text(signature.get("signerDocument"))
+    if not signer_document:
+        raise AppError(400, "Informe o documento confirmado.")
+
+    signature_mode = as_text(signature.get("signatureMode"), "draw") or "draw"
+    if signature_mode not in {"draw", "external"}:
+        signature_mode = "draw"
+
+    image_data_url = as_text(signature.get("imageDataUrl"))
+    if signature_mode == "draw" and not image_data_url.startswith("data:"):
+        raise AppError(400, "A assinatura desenhada nao foi informada.")
+
+    signed_at = as_text(signature.get("signedAt")) or now_iso()
+
+    return {
+        "consentId": consent_id,
+        "termType": as_text(payload.get("termType"), "Contrato de tatuagem"),
+        "createdAt": as_text(payload.get("createdAt")) or now_iso(),
+        "notes": as_text(payload.get("notes")),
+        "healthNotes": as_text(payload.get("healthNotes"), "Sem observacoes adicionais registradas na ficha do cliente."),
+        "client": {
+            "name": as_text(client.get("name"), "Nao informado"),
+            "birthDate": as_text(client.get("birthDate")),
+            "rg": as_text(client.get("rg")),
+            "document": signer_document,
+            "address": as_text(client.get("address")),
+            "city": as_text(client.get("city")),
+            "state": as_text(client.get("state")),
+            "phone": as_text(client.get("phone")),
+            "social": as_text(client.get("social")),
+        },
+        "contractor": {
+            "studioName": as_text(contractor.get("studioName"), "Studio"),
+            "cnpj": as_text(contractor.get("cnpj")),
+            "address": as_text(contractor.get("address")),
+            "postalCode": as_text(contractor.get("postalCode")),
+            "city": as_text(contractor.get("city")),
+            "state": as_text(contractor.get("state")),
+            "representative": as_text(contractor.get("representative")),
+            "representativeCpf": as_text(contractor.get("representativeCpf")),
+        },
+        "session": {
+            "description": as_text(session_info.get("description")),
+            "bodyArea": as_text(session_info.get("bodyArea")),
+            "artist": as_text(session_info.get("artist")),
+            "appointmentAt": as_text(session_info.get("appointmentAt")),
+            "budget": as_float(session_info.get("budget"), 0.0),
+        },
+        "signature": {
+            "signerName": signer_name,
+            "signerDocument": signer_document,
+            "signatureMode": signature_mode,
+            "imageConsent": as_text(signature.get("imageConsent"), "A definir"),
+            "annexConfirmation": as_text(signature.get("annexConfirmation")),
+            "confirmation": as_text(signature.get("confirmation")),
+            "signedAt": signed_at,
+            "imageDataUrl": image_data_url,
+            "userAgent": as_text(signature.get("userAgent")),
+        },
+    }
+
+
+def wrap_contract_text(text: str, width: int = 92) -> list[str]:
+    normalized = re.sub(r"\s+", " ", as_text(text)).strip()
+    if not normalized:
+        return [""]
+    return textwrap.wrap(normalized, width=width, break_long_words=False, break_on_hyphens=False) or [normalized]
+
+
+def new_contract_page(document: fitz.Document):
+    return document.new_page(width=595, height=842)
+
+
+def write_contract_line(document: fitz.Document, page, y: float, text: str, *, font_size: float = 11, font_name: str = "helv", color=(0.22, 0.16, 0.11)):
+    if y > 790 - font_size:
+        page = new_contract_page(document)
+        y = 48
+    page.insert_text((42, y), text, fontsize=font_size, fontname=font_name, fill=color)
+    return page, y + font_size + 4
+
+
+def write_contract_paragraph(document: fitz.Document, page, y: float, text: str, *, font_size: float = 11, font_name: str = "helv", width: int = 92, spacing_after: float = 6):
+    for line in wrap_contract_text(text, width=width):
+        page, y = write_contract_line(document, page, y, line, font_size=font_size, font_name=font_name)
+    return page, y + spacing_after
+
+
+def write_contract_title(document: fitz.Document, page, y: float, text: str):
+    return write_contract_paragraph(document, page, y, text, font_size=16, font_name="helvB", width=58, spacing_after=8)
+
+
+def write_contract_section(document: fitz.Document, page, y: float, title: str):
+    page, y = write_contract_line(document, page, y, title.upper(), font_size=12, font_name="helvB", color=(0.38, 0.16, 0.08))
+    return page, y + 2
+
+
+def write_contract_bullets(document: fitz.Document, page, y: float, items: list[str]):
+    for item in items:
+        page, y = write_contract_paragraph(document, page, y, f"- {item}", width=88, spacing_after=3)
+    return page, y + 4
+
+
+def build_tatoo_contract_pdf(payload: Any) -> tuple[bytes, dict[str, Any]]:
+    if fitz is None:
+        raise AppError(503, "Geracao de PDF requer PyMuPDF instalado no servidor.")
+
+    contract = normalize_contract_payload(payload)
+    client = contract["client"]
+    contractor = contract["contractor"]
+    session_info = contract["session"]
+    signature = contract["signature"]
+    signed_at = signature["signedAt"]
+    signature_mode = signature["signatureMode"]
+    budget = currency_value = f"R$ {session_info['budget']:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".") if session_info["budget"] else "Nao informado"
+    created_at = normalize_contract_datetime(contract["createdAt"]).strftime("%d/%m/%Y %H:%M")
+    appointment_at = normalize_contract_datetime(session_info["appointmentAt"]).strftime("%d/%m/%Y %H:%M") if as_text(session_info["appointmentAt"]) else "Nao informado"
+    birth_date = normalize_contract_datetime(client["birthDate"]).strftime("%d/%m/%Y") if as_text(client["birthDate"]) else "Nao informado"
+    signed_label = normalize_contract_datetime(signed_at).strftime("%d/%m/%Y %H:%M")
+    mode_label = "Assinatura na tela" if signature_mode == "draw" else "Assinatura digital externa (Gov.br / certificado)"
+    document = fitz.open()
+    page = new_contract_page(document)
+    y = 48
+
+    page, y = write_contract_title(document, page, y, "Contrato de servico de pigmentacao artificial permanente")
+    page, y = write_contract_paragraph(document, page, y, f"Tipo do termo: {contract['termType']}", font_name="helvB", width=84, spacing_after=2)
+    page, y = write_contract_paragraph(document, page, y, f"Consentimento: {contract['consentId']} | Criado em: {created_at}", width=90, spacing_after=10)
+
+    page, y = write_contract_section(document, page, y, "Partes")
+    page, y = write_contract_paragraph(document, page, y, f"Contratante: {client['name']}, nascido em {birth_date}, RG {client['rg'] or 'Nao informado'}, CPF {client['document']}, residente em {client['address'] or 'Nao informado'}, {client['city'] or 'Nao informado'} / {client['state'] or 'NA'}, telefone {client['phone'] or 'Nao informado'}, redes sociais {client['social'] or 'Nao informado'}.", width=90)
+    page, y = write_contract_paragraph(document, page, y, f"Contratado: {contractor['studioName']}, CNPJ {contractor['cnpj'] or 'Nao informado'}, localizado em {contractor['address'] or 'Nao informado'}, CEP {contractor['postalCode'] or 'Nao informado'}, {contractor['city'] or 'Nao informado'} / {contractor['state'] or 'NA'}, representado por {contractor['representative'] or 'Nao informado'}, CPF {contractor['representativeCpf'] or 'Nao informado'}.", width=90)
+
+    page, y = write_contract_section(document, page, y, "Resumo do atendimento")
+    page, y = write_contract_bullets(document, page, y, [
+        f"Descricao da sessao: {session_info['description'] or 'Nao informado'}.",
+        f"Area do corpo: {session_info['bodyArea'] or 'Nao informado'}.",
+        f"Profissional: {session_info['artist'] or 'Nao informado'}.",
+        f"Data e hora previstas: {appointment_at}.",
+        f"Valor previsto: {currency_value}.",
+    ])
+
+    page, y = write_contract_section(document, page, y, "Clausula primeira - do objeto")
+    page, y = write_contract_paragraph(document, page, y, "O presente instrumento tem como objeto a prestacao de servicos de pigmentacao artificial permanente da pele, consistente na pigmentacao exogena introduzida fisicamente na camada dermica ou subepidermica da pele, com resultado permanente, para fins de embelezamento ou correcao estetica.")
+    page, y = write_contract_paragraph(document, page, y, "O contratante declara que forneceu historico de saude suficiente para a avaliacao do atendimento e que recebeu previamente, por meios digitais, as informacoes de agendamento e funcionamento equivalentes ao Anexo II.")
+
+    page, y = write_contract_section(document, page, y, "Clausula segunda - saude e higiene do estudio")
+    page, y = write_contract_paragraph(document, page, y, "Os produtos utilizados no procedimento e na higienizacao do ambiente seguem as normas sanitarias aplicaveis. Tintas sao fracionadas por cliente, sobras sao descartadas como residuo infectante e materiais nao descartaveis passam por limpeza, desinfeccao e ou esterilizacao.")
+    page, y = write_contract_paragraph(document, page, y, "Luvas, agulhas, laminas e itens equivalentes sao de uso unico e descartavel.")
+
+    page, y = write_contract_section(document, page, y, "Clausula terceira - valor e vigencia")
+    page, y = write_contract_paragraph(document, page, y, f"O servico sera executado por sessoes. Para este atendimento, o valor previsto registrado e {currency_value}, podendo haver ajuste apenas se houver mudanca relevante de escopo, desenho ou cronograma previamente combinada entre as partes.")
+    page, y = write_contract_paragraph(document, page, y, "O pagamento deve ocorrer no dia do procedimento, em especie, cartao ou PIX, observada eventual taxa de agendamento previamente combinada com o estudio.")
+
+    page, y = write_contract_section(document, page, y, "Obrigacoes do contratante")
+    page, y = write_contract_bullets(document, page, y, [
+        "Zelar pela propria pele e seguir as orientacoes de preparo e cicatrizacao fornecidas pelo profissional.",
+        "Informar alergias, medicamentos, condicoes cutaneas e qualquer dado de saude que possa impactar o procedimento.",
+        "Justificar ausencia com antecedencia minima de 72 horas, quando aplicavel.",
+        "Comparecer alimentado e com documento com foto no dia agendado.",
+    ])
+
+    page, y = write_contract_section(document, page, y, "Obrigacoes do contratado")
+    page, y = write_contract_bullets(document, page, y, [
+        "Executar o objeto do contrato buscando excelencia tecnica, seguranca e higiene.",
+        "Apresentar materiais novos ou esterilizados antes da sessao e descartar corretamente os residuos ao final.",
+        "Orientar o cliente sobre preparo, atendimento e cuidados posteriores ao procedimento.",
+    ])
+
+    page, y = write_contract_section(document, page, y, "Responsabilidade e uso de imagem")
+    page, y = write_contract_paragraph(document, page, y, "O contratante declara que teve conhecimento dos cuidados anteriores, durante e posteriores ao procedimento, sendo de sua responsabilidade seguir essas orientacoes para alcancar o resultado esperado. O estudio nao podera ser responsabilizado por informacoes omitidas sobre alergias, problemas cutaneos, uso de medicacao ou outras condicoes que interfiram no resultado final.")
+    page, y = write_contract_paragraph(document, page, y, f"Uso de imagem neste termo: {signature['imageConsent'] or 'Nao informado'}.")
+
+    if contract['notes']:
+        page, y = write_contract_section(document, page, y, "Clausulas adicionais do atendimento")
+        page, y = write_contract_paragraph(document, page, y, contract['notes'])
+
+    page, y = write_contract_section(document, page, y, "Anexo I - ficha de anamnese")
+    page, y = write_contract_paragraph(document, page, y, f"Observacoes de saude registradas: {contract['healthNotes']}")
+    page, y = write_contract_paragraph(document, page, y, "Declaracao: as informacoes acima devem ser verdadeiras, nao cabendo ao profissional responsabilidade por dados omitidos nesta avaliacao.")
+
+    page, y = write_contract_section(document, page, y, "Anexo II - termo de agendamento e atendimento")
+    page, y = write_contract_bullets(document, page, y, [
+        "O estudio realiza procedimentos com rigor de higiene, usando materiais descartaveis e ou esterilizados.",
+        "O orcamento pode variar conforme ideia, tamanho, cores, local da tatuagem e grau de complexidade da arte.",
+        "O agendamento so e confirmado apos pagamento do sinal; reagendamentos dependem de antecedencia e disponibilidade.",
+        "No dia do procedimento, o cliente deve comparecer alimentado, com documento com foto, sem uso de alcool ou drogas.",
+        "Os cuidados de cicatrizacao serao repassados pelo profissional, e intercorrencias por descuido podem gerar novo custo.",
+    ])
+    page, y = write_contract_paragraph(document, page, y, f"Declaracao de recebimento: {signature['annexConfirmation'] or 'Nao informado'}")
+    page, y = write_contract_paragraph(document, page, y, f"Declaracao final do cliente: {signature['confirmation'] or 'Nao informado'}")
+
+    page, y = write_contract_section(document, page, y, "Assinatura")
+    page, y = write_contract_paragraph(document, page, y, f"Modo de assinatura selecionado: {mode_label}.")
+    page, y = write_contract_paragraph(document, page, y, f"Assinante: {signature['signerName']} | Documento confirmado: {signature['signerDocument']} | Data: {signed_label}")
+
+    if signature_mode == "draw" and signature['imageDataUrl']:
+        image_bytes = image_bytes_from_data_url(signature['imageDataUrl'])
+        if y > 660:
+            page = new_contract_page(document)
+            y = 48
+        page, y = write_contract_paragraph(document, page, y, "Assinatura coletada na tela:", font_name="helvB", spacing_after=4)
+        rect = fitz.Rect(42, y, 252, y + 90)
+        page.draw_rect(rect, color=(0.55, 0.45, 0.38), width=0.8)
+        page.insert_image(rect, stream=image_bytes, keep_proportion=True)
+        y = rect.y1 + 14
+    else:
+        page, y = write_contract_paragraph(document, page, y, "Documento preparado para assinatura digital externa em Gov.br, certificado ou outra plataforma compativel.")
+        if y > 700:
+            page = new_contract_page(document)
+            y = 48
+        signature_rect = fitz.Rect(42, y + 10, 300, y + 68)
+        page.draw_rect(signature_rect, color=(0.55, 0.45, 0.38), width=0.8)
+        page.insert_text((50, y + 36), "Area reservada para assinatura digital externa", fontsize=10, fontname="helv", fill=(0.35, 0.26, 0.18))
+        y = signature_rect.y1 + 14
+
+    if y > 720:
+        page = new_contract_page(document)
+        y = 48
+
+    page.draw_line(fitz.Point(42, y + 18), fitz.Point(250, y + 18), color=(0.35, 0.24, 0.16), width=0.8)
+    page.insert_text((42, y + 34), signature['signerName'], fontsize=10, fontname="helv")
+    page.insert_text((42, y + 48), "Contratante", fontsize=9, fontname="helv")
+
+    page.draw_line(fitz.Point(320, y + 18), fitz.Point(552, y + 18), color=(0.35, 0.24, 0.16), width=0.8)
+    page.insert_text((320, y + 34), contractor['representative'] or contractor['studioName'], fontsize=10, fontname="helv")
+    page.insert_text((320, y + 48), "Tatuador / representante do estudio", fontsize=9, fontname="helv")
+
+    pdf_bytes = document.tobytes(garbage=4, deflate=True)
+    document.close()
+    return pdf_bytes, contract
+
+
+def save_tatoo_contract_pdf(payload: Any) -> dict[str, Any]:
+    pdf_bytes, contract = build_tatoo_contract_pdf(payload)
+    signature = contract['signature']
+    file_name = build_contract_filename(
+        contract['consentId'],
+        signature['signerName'],
+        signature['signedAt'],
+        signature['signatureMode'],
+    )
+    target_dir = CONTRACTS_DIR / contract_folder_name(signature['signedAt'])
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target_file = ensure_unique_file_path(target_dir, file_name)
+    target_file.write_bytes(pdf_bytes)
+    relative_path = target_file.relative_to(CONTRACTS_DIR).as_posix()
+    return {
+        'fileName': target_file.name,
+        'path': relative_path,
+        'url': build_contract_url(relative_path),
+        'size': len(pdf_bytes),
+        'savedAt': now_iso(),
+        'signedAt': signature['signedAt'],
+        'signatureMode': signature['signatureMode'],
+    }
+
+
 DATA_DIR = resolve_data_dir()
 ATTACHMENTS_DIR = resolve_attachment_dir()
+CONTRACTS_DIR = resolve_contracts_dir()
 DATABASE_URL = build_database_url(DATA_DIR)
 DB_PROVIDER = detect_provider(DATABASE_URL)
 LEGACY_STORE_TABLE = assert_table_name(os.getenv("LEGACY_STORE_TABLE", "app_stores"))
@@ -2574,6 +2886,21 @@ def decode_finance_attachment():
     is_pdf = "pdf" in mime_type or file_name.lower().endswith(".pdf")
     codes = decode_pdf_codes(content) if is_pdf else decode_image_codes(content)
     return jsonify({"ok": True, "codes": codes})
+
+
+@app.get("/api/tatoo/contracts/<path:contract_path>")
+def get_tatoo_contract(contract_path: str):
+    candidate = ensure_within_directory(CONTRACTS_DIR, CONTRACTS_DIR / contract_path)
+    if not candidate.exists() or not candidate.is_file():
+        abort(404)
+    return send_from_directory(candidate.parent, candidate.name)
+
+
+@app.post("/api/tatoo/contracts")
+def create_tatoo_contract():
+    body = request.get_json(silent=True) or {}
+    metadata = save_tatoo_contract_pdf(body)
+    return jsonify({"ok": True, "contract": metadata})
 
 
 @app.post("/api/finance/reminders/run")

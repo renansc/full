@@ -1,0 +1,87 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contrato e Consentimento</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body class="signature-body">
+  <main class="signature-shell">
+    <section class="signature-panel">
+      <div class="signature-heading">
+        <div>
+          <p class="eyebrow">Assinatura digital</p>
+          <h1>Contrato e consentimento</h1>
+          <p id="signature-description">Abra esta pagina a partir de um consentimento gerado para carregar os dados automaticamente.</p>
+        </div>
+        <div id="signature-badge" class="signature-badge">Modelo contratual</div>
+      </div>
+
+      <article id="signature-consent" class="consent-document"></article>
+
+      <form id="signature-form" class="signature-form">
+        <div class="signature-form-grid">
+          <label>
+            Nome do cliente no momento da assinatura
+            <input type="text" id="signer-name" required>
+          </label>
+          <label>
+            Documento confirmado
+            <input type="text" id="signer-document" required>
+          </label>
+        </div>
+
+        <div class="signature-form-grid">
+          <label>
+            Tipo de assinatura
+            <select id="signature-mode">
+              <option value="draw">Assinatura na tela</option>
+              <option value="external">Assinatura digital externa (Gov.br / certificado)</option>
+            </select>
+          </label>
+          <label>
+            Uso de imagem
+            <select id="image-consent">
+              <option value="Autorizo">Autorizo o uso de imagem</option>
+              <option value="Nao autorizo">Nao autorizo o uso de imagem</option>
+            </select>
+          </label>
+        </div>
+
+        <label>
+          Confirmacao de leitura
+          <input type="text" id="annex-confirmation" value="Recebi previamente o Anexo II por meios digitais." required>
+        </label>
+
+        <label>
+          Declaracao final
+          <textarea id="signer-confirmation" rows="4" required>Declaro que li previamente o contrato de prestacao de servicos de pigmentacao artificial permanente da pele, recebi as informacoes do Anexo II por meios digitais e estou de acordo com os termos, cuidados e condicoes apresentados.</textarea>
+        </label>
+
+        <p id="signature-mode-note" class="mode-note">A assinatura na tela salva o desenho, gera o PDF e guarda o arquivo em contratos/ no servidor.</p>
+
+        <div id="signature-canvas-section" class="signature-canvas-wrap">
+          <div class="canvas-topbar">
+            <span>Assine abaixo com o dedo ou caneta touch</span>
+            <button class="button ghost" id="clear-signature" type="button">Limpar</button>
+          </div>
+          <canvas id="signature-canvas" width="900" height="320" aria-label="Area de assinatura"></canvas>
+        </div>
+
+        <div class="signature-actions">
+          <button class="button" id="save-signature" type="submit">Salvar assinatura e gerar PDF</button>
+          <a id="download-contract" class="button secondary hidden" href="#" target="_blank" rel="noreferrer">Baixar PDF salvo</a>
+        </div>
+      </form>
+
+      <div id="signature-status" class="status-box"></div>
+    </section>
+  </main>
+
+  <script src="./signature.js"></script>
+</body>
+</html>

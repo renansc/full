@@ -1,0 +1,331 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tatoo Studio Web</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand-block">
+        <p class="eyebrow">Studio Management</p>
+        <h1>Tatoo</h1>
+        <p class="brand-copy">Base web para estudio de tatuagem com cadastro, agenda, consentimento e assinatura digital.</p>
+      </div>
+
+      <nav class="side-nav">
+        <a href="#dashboard">Painel</a>
+        <a href="#clientes">Clientes</a>
+        <a href="#sessoes">Sessoes</a>
+        <a href="#consentimentos">Consentimentos</a>
+        <a href="#financeiro">Financeiro</a>
+        <a href="#dados">Dados</a>
+      </nav>
+
+      <div class="side-card">
+        <p class="side-card-title">Assinatura touch</p>
+        <p>Abra a tela de assinatura em outro dispositivo ou no proprio tablet do cliente.</p>
+        <a class="button ghost" href="./signature.html" target="_blank" rel="noreferrer">Abrir pagina de assinatura</a>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <header class="hero" id="dashboard">
+        <div>
+          <p class="eyebrow">Formato web</p>
+          <h2>Controle o estudio em uma unica base</h2>
+          <p>Cadastre clientes, organize sessoes, gere termos e colete assinaturas digitais em iPad ou tablet Android.</p>
+        </div>
+        <div class="hero-actions">
+          <button class="button" data-scroll="#clientes">Novo cliente</button>
+          <button class="button secondary" data-scroll="#consentimentos">Novo consentimento</button>
+        </div>
+      </header>
+
+      <section class="metrics-grid" aria-label="Indicadores do estudio">
+        <article class="metric-card">
+          <span>Clientes</span>
+          <strong id="metric-clients">0</strong>
+          <small>cadastros ativos</small>
+        </article>
+        <article class="metric-card">
+          <span>Sessoes</span>
+          <strong id="metric-sessions">0</strong>
+          <small>atendimentos registrados</small>
+        </article>
+        <article class="metric-card">
+          <span>Consentimentos</span>
+          <strong id="metric-consents">0</strong>
+          <small>termos gerados</small>
+        </article>
+        <article class="metric-card">
+          <span>Receita</span>
+          <strong id="metric-revenue">R$ 0,00</strong>
+          <small>pagamentos lancados</small>
+        </article>
+      </section>
+
+      <section class="panel two-column" id="clientes">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Cadastro</p>
+            <h3>Clientes</h3>
+          </div>
+        </div>
+        <div class="grid split">
+          <form id="client-form" class="card form-card">
+            <h4>Novo cliente</h4>
+            <label>
+              Nome completo
+              <input type="text" name="name" required>
+            </label>
+            <label>
+              CPF
+              <input type="text" name="document" required>
+            </label>
+            <label>
+              RG
+              <input type="text" name="rg">
+            </label>
+            <label>
+              Telefone
+              <input type="tel" name="phone" required>
+            </label>
+            <label>
+              E-mail
+              <input type="email" name="email">
+            </label>
+            <label>
+              Data de nascimento
+              <input type="date" name="birthDate">
+            </label>
+            <label>
+              Endereco
+              <input type="text" name="address">
+            </label>
+            <label>
+              Cidade
+              <input type="text" name="city">
+            </label>
+            <label>
+              UF
+              <input type="text" name="state" maxlength="2" placeholder="PR">
+            </label>
+            <label>
+              Redes sociais
+              <input type="text" name="social" placeholder="@perfil ou links relevantes">
+            </label>
+            <label>
+              Observacoes de saude
+              <textarea name="healthNotes" rows="4" placeholder="Alergias, medicamentos, condicoes relevantes"></textarea>
+            </label>
+            <button class="button" type="submit">Salvar cliente</button>
+          </form>
+
+          <div class="card list-card">
+            <div class="card-head">
+              <h4>Lista de clientes</h4>
+              <input id="client-search" type="search" placeholder="Buscar cliente">
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Cliente</th>
+                    <th>Contato</th>
+                    <th>Saude</th>
+                  </tr>
+                </thead>
+                <tbody id="clients-table"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="sessoes">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Operacao</p>
+            <h3>Sessoes e agenda</h3>
+          </div>
+        </div>
+        <div class="grid split">
+          <form id="session-form" class="card form-card">
+            <h4>Nova sessao</h4>
+            <label>
+              Cliente
+              <select name="clientId" id="session-client" required></select>
+            </label>
+            <label>
+              Tatuador(a)
+              <input type="text" name="artist" required placeholder="Nome do profissional">
+            </label>
+            <label>
+              Data e hora
+              <input type="datetime-local" name="appointmentAt" required>
+            </label>
+            <label>
+              Area do corpo
+              <input type="text" name="bodyArea" required>
+            </label>
+            <label>
+              Estilo / descricao
+              <textarea name="description" rows="4" required placeholder="Ex.: blackwork floral no antebraco"></textarea>
+            </label>
+            <label>
+              Orcamento (R$)
+              <input type="number" min="0" step="0.01" name="budget" required>
+            </label>
+            <label>
+              Status
+              <select name="status">
+                <option value="Agendada">Agendada</option>
+                <option value="Em andamento">Em andamento</option>
+                <option value="Concluida">Concluida</option>
+                <option value="Cancelada">Cancelada</option>
+              </select>
+            </label>
+            <button class="button" type="submit">Salvar sessao</button>
+          </form>
+
+          <div class="card list-card">
+            <div class="card-head">
+              <h4>Agenda do estudio</h4>
+            </div>
+            <div id="sessions-list" class="stack-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="consentimentos">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Termos</p>
+            <h3>Consentimentos e assinatura</h3>
+          </div>
+        </div>
+        <div class="grid split">
+          <form id="consent-form" class="card form-card">
+            <h4>Gerar termo</h4>
+            <label>
+              Cliente
+              <select name="clientId" id="consent-client" required></select>
+            </label>
+            <label>
+              Sessao vinculada
+              <select name="sessionId" id="consent-session" required></select>
+            </label>
+            <label>
+              Tipo de termo
+              <select name="termType">
+                <option value="Contrato de tatuagem">Contrato de tatuagem</option>
+                <option value="Autorizacao de menor">Autorizacao de menor</option>
+                <option value="Pos cuidados">Termo de pos cuidados</option>
+              </select>
+            </label>
+            <label>
+              Termos adicionais
+              <textarea name="notes" rows="5" placeholder="Inclua observacoes especificas, restricoes ou clausulas extras."></textarea>
+            </label>
+            <button class="button" type="submit">Gerar consentimento</button>
+          </form>
+
+          <div class="card list-card">
+            <div class="card-head">
+              <h4>Termos gerados</h4>
+            </div>
+            <div id="consents-list" class="stack-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="financeiro">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Receita</p>
+            <h3>Financeiro</h3>
+          </div>
+        </div>
+        <div class="grid split">
+          <form id="payment-form" class="card form-card">
+            <h4>Lancar pagamento</h4>
+            <label>
+              Cliente
+              <select name="clientId" id="payment-client" required></select>
+            </label>
+            <label>
+              Sessao
+              <select name="sessionId" id="payment-session" required></select>
+            </label>
+            <label>
+              Valor (R$)
+              <input type="number" min="0" step="0.01" name="amount" required>
+            </label>
+            <label>
+              Forma de pagamento
+              <select name="method">
+                <option value="Pix">Pix</option>
+                <option value="Cartao">Cartao</option>
+                <option value="Dinheiro">Dinheiro</option>
+                <option value="Transferencia">Transferencia</option>
+              </select>
+            </label>
+            <label>
+              Observacoes
+              <textarea name="notes" rows="3"></textarea>
+            </label>
+            <button class="button" type="submit">Registrar pagamento</button>
+          </form>
+
+          <div class="card list-card">
+            <div class="card-head">
+              <h4>Historico financeiro</h4>
+            </div>
+            <div id="payments-list" class="stack-list"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="dados">
+        <div class="panel-header">
+          <div>
+            <p class="eyebrow">Persistencia</p>
+            <h3>Dados em JSON</h3>
+          </div>
+        </div>
+        <div class="grid split">
+          <div class="card form-card">
+            <h4>Exportar base</h4>
+            <p>Baixe todos os dados do estudio em um arquivo JSON para backup, migracao ou futura integracao com backend.</p>
+            <button class="button" id="export-json" type="button">Exportar JSON</button>
+          </div>
+
+          <div class="card form-card">
+            <h4>Importar base</h4>
+            <p>Carregue um arquivo JSON exportado anteriormente para restaurar o sistema neste navegador.</p>
+            <label class="file-input">
+              Selecionar arquivo
+              <input type="file" id="import-json" accept=".json,application/json">
+            </label>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <template id="empty-state-template">
+    <div class="empty-state">
+      <strong>Nenhum registro ainda</strong>
+      <p>Assim que voce cadastrar dados, eles aparecerao aqui.</p>
+    </div>
+  </template>
+
+  <script src="./app.js"></script>
+</body>
+</html>
