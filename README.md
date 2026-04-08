@@ -6,11 +6,13 @@ Repositorio preparado para deploy da FULL com rotas dedicadas:
 - `/bpa/` -> modulo BPA
 - `/financeiro/` -> financeiro
 - `/gpsmusical/` -> GPS Musical
+- `/zap/` -> Zap Workflow
 
 ## Estrutura
 
 - `app.py` serve os apps estaticos e as APIs usadas por Financeiro, GPS e BPA
 - `bpa/`, `financeiro/` e `gpsmusical/` possuem `index.html` para funcionar direto na URL da rota
+- `zap/` contem o sistema Flask de atendimento, vendas e prestacao de servicos
 - `shared/remote-store.js` atende os modulos que usam sincronizacao remota
 - `menuapps.txt` documenta os links diretos e as rotas da FULL
 

@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">Operacao viva</p>
+    <h1>Kanban, WhatsApp e departamentos no mesmo lugar.</h1>
+    <p class="lead">Abra cards, distribua entre departamentos, cadastre clientes, atualize servicos e acompanhe a fila com estados e etiquetas personalizaveis.</p>
+  </div>
+  <div class="hero-actions">
+    <button class="primary-btn" data-open-modal="ticket-modal">Novo card</button>
+    <button class="secondary-btn" data-open-modal="settings-modal">Atalhos</button>
+  </div>
+</section>
+
+<section class="board" id="board"></section>
+
+<template id="ticket-card-template">
+  <article class="ticket-card" draggable="true">
+    <header>
+      <strong data-field="title"></strong>
+      <span class="ticket-id"></span>
+    </header>
+    <p data-field="client_name"></p>
+    <p class="muted" data-field="service"></p>
+    <div class="ticket-meta">
+      <span class="pill" data-field="department"></span>
+      <span class="pill" data-field="status"></span>
+    </div>
+    <div class="label-row"></div>
+  </article>
+</template>
+
+<div class="modal" id="ticket-modal" aria-hidden="true">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h2>Novo atendimento</h2>
+      <button class="icon-btn" data-close-modal>&times;</button>
+    </div>
+    <form id="ticket-form" class="grid-form">
+      <input type="text" name="title" placeholder="Titulo do card" value="Novo atendimento">
+      <input type="text" name="client_name" placeholder="Nome do cliente" required>
+      <input type="text" name="client_phone" placeholder="Telefone com DDD" required>
+      <select name="department_id" data-department-select data-selected-department-id="{{ user_payload.department_id if user_payload else '' }}">
+        <option value="">Departamento</option>
+      </select>
+      <input type="text" name="company" placeholder="Empresa">
+      <input type="text" name="service" placeholder="Servico executado">
+      <input type="datetime-local" name="due_at" placeholder="Data e hora">
+      <textarea name="description" placeholder="Observacoes, diagnostico, proximos passos"></textarea>
+      <div class="label-picker-block">
+        <strong>Etiquetas</strong>
+        <div id="ticket-label-picker" class="label-picker"></div>
+      </div>
+      <button type="submit" class="primary-btn">Salvar card</button>
+    </form>
+  </div>
+</div>
+
+<div class="modal" id="details-modal" aria-hidden="true">
+  <div class="modal-card modal-wide">
+    <div class="modal-head">
+      <h2>Atendimento</h2>
+      <button class="icon-btn" data-close-modal>&times;</button>
+    </div>
+    <div class="details-grid">
+      <form id="details-form" class="grid-form">
+        <input type="hidden" name="ticket_id">
+        <input type="text" name="title" placeholder="Titulo do card">
+        <input type="text" name="client_name" placeholder="Nome do cliente">
+        <input type="text" name="client_phone" placeholder="Telefone com DDD">
+        <select name="department_id" data-department-select data-selected-department-id="">
+          <option value="">Departamento</option>
+        </select>
+        <input type="text" name="company" placeholder="Empresa">
+        <input type="text" name="service" placeholder="Servico executado">
+        <input type="datetime-local" name="due_at" placeholder="Data e hora">
+        <textarea name="description" placeholder="Observacoes, diagnostico, proximos passos"></textarea>
+        <div class="label-picker-block">
+          <strong>Etiquetas</strong>
+          <div id="details-label-picker" class="label-picker"></div>
+        </div>
+        <button type="submit" class="primary-btn">Salvar alteracoes</button>
+      </form>
+      <div class="conversation-panel">
+        <div class="conversation-head">
+          <div>
+            <h3>Conversa</h3>
+            <p class="muted" id="conversation-contact"></p>
+          </div>
+          <span class="pill" id="conversation-meta">WhatsApp Business</span>
+        </div>
+        <div class="message-list" id="message-list"></div>
+        <form id="message-form" class="message-form">
+          <textarea name="content" placeholder="Digite uma mensagem ou cole uma resposta rapida"></textarea>
+          <input type="text" name="media_url" placeholder="Link de arquivo ou midia">
+          <div class="message-actions">
+            <input type="file" id="file-upload" hidden>
+            <button type="button" class="secondary-btn" id="pick-file-btn">Arquivo</button>
+            <button type="submit" class="primary-btn">Enviar WhatsApp</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal" id="settings-modal" aria-hidden="true">
+  <div class="modal-card modal-wide">
+    <div class="modal-head">
+      <h2>Atalhos rapidos</h2>
+      <button class="icon-btn" data-close-modal>&times;</button>
+    </div>
+    <div class="quick-grid">
+      {% for reply in quick_replies %}
+      <button class="quick-reply" data-body="{{ reply.body|e }}">{{ reply.title }}</button>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock %}

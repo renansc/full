@@ -1,0 +1,211 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Configuracao</p>
+    <h1>Parametros do fluxo</h1>
+    <p class="lead">Ajuste WhatsApp, agenda compartilhada, departamentos, lembretes e status das integracoes sem tocar no codigo.</p>
+  </div>
+</section>
+
+<section class="settings-grid">
+  <article class="panel">
+    <h2>Estados do fluxo</h2>
+    <form id="state-form" class="stack-form">
+      <input name="name" placeholder="Nome do estado">
+      <input name="order_index" type="number" placeholder="Ordem">
+      <input name="color" type="color" value="#4f46e5">
+      <label><input name="is_closed" type="checkbox"> Estado final</label>
+      <label><input name="is_default" type="checkbox"> Padrao</label>
+      <button class="primary-btn" type="submit">Adicionar estado</button>
+    </form>
+    <div class="list-stack">
+      {% for state in states %}
+        <div class="list-item"><span class="swatch" style="background: {{ state.color }}"></span>{{ state.name }}</div>
+      {% endfor %}
+    </div>
+  </article>
+
+  <article class="panel">
+    <h2>Departamentos</h2>
+    <form id="department-form" class="stack-form">
+      <input name="name" placeholder="Nome do departamento">
+      <input name="color" type="color" value="#38bdf8">
+      <label><input name="is_default" type="checkbox"> Padrao</label>
+      <button class="primary-btn" type="submit">Adicionar departamento</button>
+    </form>
+    <div class="list-stack">
+      {% for department in departments %}
+        <div class="list-item"><span class="swatch" style="background: {{ department.color }}"></span>{{ department.name }}</div>
+      {% endfor %}
+    </div>
+  </article>
+
+  <article class="panel">
+    <h2>Etiquetas</h2>
+    <form id="label-form" class="stack-form">
+      <input name="name" placeholder="Nome da etiqueta">
+      <input name="color" type="color" value="#64748b">
+      <button class="primary-btn" type="submit">Adicionar etiqueta</button>
+    </form>
+    <div class="list-stack">
+      {% for label in labels %}
+        <div class="list-item"><span class="swatch" style="background: {{ label.color }}"></span>{{ label.name }}</div>
+      {% endfor %}
+    </div>
+  </article>
+
+  <article class="panel">
+    <h2>Respostas rapidas</h2>
+    <form id="quick-reply-form" class="stack-form">
+      <input name="title" placeholder="Titulo">
+      <input name="shortcut" placeholder="/atalho">
+      <textarea name="body" placeholder="Mensagem completa"></textarea>
+      <button class="primary-btn" type="submit">Adicionar resposta</button>
+    </form>
+    <div class="list-stack">
+      {% for reply in quick_replies %}
+        <div class="list-item"><strong>{{ reply.shortcut }}</strong> {{ reply.title }}</div>
+      {% endfor %}
+    </div>
+  </article>
+
+  <article class="panel">
+    <h2>Webhook WhatsApp</h2>
+    <div class="list-stack">
+      <div class="list-item"><strong>Callback URL</strong> <code>{{ whatsapp_webhook_url or 'Defina PUBLIC_BASE_URL' }}</code></div>
+      <div class="list-item"><strong>Verify token</strong> <code>{{ settings_map.get('WHATSAPP_VERIFY_TOKEN', 'zap_verify_2026_04') }}</code></div>
+    </div>
+    <p class="muted">Use a URL publica do ngrok ou do dominio final. Exemplo: https://abcd-1234.ngrok-free.app/webhooks/whatsapp</p>
+  </article>
+
+  <article class="panel">
+    <h2>WhatsApp Business</h2>
+    <form id="whatsapp-settings-form" class="stack-form" data-settings-form>
+      <input name="WHATSAPP_TOKEN" placeholder="Access Token" value="{{ settings_map.get('WHATSAPP_TOKEN', '') }}">
+      <input name="WHATSAPP_PHONE_NUMBER_ID" placeholder="Phone Number ID" value="{{ settings_map.get('WHATSAPP_PHONE_NUMBER_ID', '') }}">
+      <input name="WHATSAPP_VERIFY_TOKEN" placeholder="Verify Token" value="{{ settings_map.get('WHATSAPP_VERIFY_TOKEN', '') }}">
+      <input name="WHATSAPP_API_VERSION" placeholder="API Version" value="{{ settings_map.get('WHATSAPP_API_VERSION', 'v20.0') }}">
+      <input name="WHATSAPP_TEMPLATE_REMINDER" placeholder="Template de lembrete" value="{{ settings_map.get('WHATSAPP_TEMPLATE_REMINDER', '') }}">
+      <input name="WHATSAPP_DEFAULT_LANGUAGE" placeholder="Idioma padrao" value="{{ settings_map.get('WHATSAPP_DEFAULT_LANGUAGE', 'pt_BR') }}">
+      <label><input name="WHATSAPP_ENABLE_AUTO_REPLY" type="checkbox" {% if settings_map.get('WHATSAPP_ENABLE_AUTO_REPLY', 'true') in ['true', '1', 'yes', 'on'] %}checked{% endif %}> Auto resposta habilitada</label>
+      <label><input name="WHATSAPP_ENABLE_STATUS_WEBHOOK" type="checkbox" {% if settings_map.get('WHATSAPP_ENABLE_STATUS_WEBHOOK', 'true') in ['true', '1', 'yes', 'on'] %}checked{% endif %}> Atualizar status do envio</label>
+      <label><input name="WHATSAPP_ENABLE_MEDIA" type="checkbox" {% if settings_map.get('WHATSAPP_ENABLE_MEDIA', 'true') in ['true', '1', 'yes', 'on'] %}checked{% endif %}> Enviar midia e anexos</label>
+      <button class="primary-btn" type="submit">Salvar WhatsApp</button>
+    </form>
+  </article>
+
+  <article class="panel">
+    <h2>Agenda compartilhada</h2>
+    <form id="agenda-settings-form" class="stack-form" data-settings-form>
+      <textarea name="GOOGLE_SERVICE_ACCOUNT_JSON" placeholder="JSON da service account">{{ settings_map.get('GOOGLE_SERVICE_ACCOUNT_JSON', '') }}</textarea>
+      <input name="GOOGLE_SHEETS_SPREADSHEET_ID" placeholder="Spreadsheet ID" value="{{ settings_map.get('GOOGLE_SHEETS_SPREADSHEET_ID', '') }}">
+      <input name="GOOGLE_SHEETS_TAB_NAME" placeholder="Nome da aba" value="{{ settings_map.get('GOOGLE_SHEETS_TAB_NAME', 'Agenda') }}">
+      <label><input name="GOOGLE_SHEETS_SYNC_ENABLED" type="checkbox" {% if settings_map.get('GOOGLE_SHEETS_SYNC_ENABLED', 'true') in ['true', '1', 'yes', 'on'] %}checked{% endif %}> Sincronizacao ligada</label>
+      <label><input name="GOOGLE_SHEETS_ALLOW_WRITEBACK" type="checkbox" {% if settings_map.get('GOOGLE_SHEETS_ALLOW_WRITEBACK', 'false') in ['true', '1', 'yes', 'on'] %}checked{% endif %}> Permitir gravacao de volta</label>
+      <button class="primary-btn" type="submit">Salvar agenda</button>
+    </form>
+    <p class="muted">A agenda usa Google Sheets como planilha compartilhada, sem depender do Google Calendar.</p>
+  </article>
+
+  <article class="panel">
+    <h2>Lembretes</h2>
+    <form id="reminder-settings-form" class="stack-form" data-settings-form>
+      <input name="REMINDER_MINUTES" type="number" value="{{ settings_map.get('REMINDER_MINUTES', '120') }}">
+      <label><input name="REMINDER_SEND_WHATSAPP" type="checkbox" {% if settings_map.get('REMINDER_SEND_WHATSAPP', 'true') in ['true', '1', 'yes', 'on'] %}checked{% endif %}> Enviar lembrete via WhatsApp</label>
+      <label><input name="REMINDER_SOUND_ENABLED" type="checkbox" {% if settings_map.get('REMINDER_SOUND_ENABLED', 'true') in ['true', '1', 'yes', 'on'] %}checked{% endif %}> Som de alerta no navegador</label>
+      <button class="primary-btn" type="submit">Salvar lembretes</button>
+    </form>
+    <button class="secondary-btn" id="run-reminders-btn" type="button">Executar lembretes agora</button>
+  </article>
+
+  <article class="panel">
+    <h2>Integracoes extras</h2>
+    <form id="integration-settings-form" class="stack-form" data-settings-form>
+      <input name="PUBLIC_BASE_URL" placeholder="URL publica (ngrok ou dominio)" value="{{ public_base_url }}">
+      <input name="GOOGLE_CLIENT_ID" placeholder="Google Client ID" value="{{ settings_map.get('GOOGLE_CLIENT_ID', '') }}">
+      <input name="GOOGLE_CLIENT_SECRET" placeholder="Google Client Secret" value="{{ settings_map.get('GOOGLE_CLIENT_SECRET', '') }}">
+      <input name="GOOGLE_REDIRECT_URI" placeholder="Google Redirect URI" value="{{ settings_map.get('GOOGLE_REDIRECT_URI', '') }}">
+      <input name="AGENDA_DEFAULT_VIEW" placeholder="Visao padrao da agenda" value="{{ settings_map.get('AGENDA_DEFAULT_VIEW', 'sheet') }}">
+      <button class="primary-btn" type="submit">Salvar integracoes</button>
+    </form>
+  </article>
+
+  <article class="panel">
+    <h2>Status das integracoes</h2>
+    <div class="integration-status-list" id="integration-status-list">
+      {% for item in integration_status %}
+        <div class="status-row status-{{ item.status }}">
+          <strong>{{ item.name }}</strong>
+          <span>{{ item.detail }}</span>
+        </div>
+      {% endfor %}
+    </div>
+    <button class="secondary-btn" type="button" id="refresh-integration-status-btn">Atualizar status</button>
+  </article>
+
+  <article class="panel">
+    <h2>Usuarios e senhas</h2>
+    {% if is_admin %}
+      <form id="user-create-form" class="stack-form">
+        <input name="name" placeholder="Nome">
+        <input name="email" type="email" placeholder="E-mail">
+        <input name="password" type="password" placeholder="Senha inicial">
+        <select name="department_id" data-department-select>
+          <option value="">Departamento</option>
+        </select>
+        <select name="role">
+          <option value="operator">Operador</option>
+          <option value="admin">Administrador</option>
+        </select>
+        <button class="primary-btn" type="submit">Adicionar usuario</button>
+      </form>
+      <div class="list-stack">
+        {% for user in users %}
+          <div class="list-item user-row">
+            <div>
+              <strong>{{ user.name }}</strong>
+              <div class="muted">{{ user.email }} | {{ user.role }}{% if user.department_name %} | {{ user.department_name }}{% endif %}</div>
+            </div>
+            <button class="secondary-btn edit-user-btn" type="button" data-user='{{ user|tojson }}'>Editar</button>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="muted">Somente administradores podem criar ou editar usuarios.</p>
+    {% endif %}
+  </article>
+
+  <article class="panel">
+    <h2>Configuracao atual</h2>
+    <div class="list-stack">
+      {% for setting in settings_rows %}
+        <div class="list-item"><strong>{{ setting.key }}</strong> {{ setting.value }}</div>
+      {% endfor %}
+    </div>
+  </article>
+</section>
+
+<div class="modal" id="user-modal" aria-hidden="true">
+  <div class="modal-card modal-wide">
+    <div class="modal-head">
+      <h2>Editar usuario</h2>
+      <button class="icon-btn" data-close-modal>&times;</button>
+    </div>
+    <form id="user-edit-form" class="stack-form">
+      <input type="hidden" name="id">
+      <input name="name" placeholder="Nome">
+      <input name="email" type="email" placeholder="E-mail">
+      <input name="password" type="password" placeholder="Nova senha opcional">
+      <select name="department_id" data-department-select>
+        <option value="">Departamento</option>
+      </select>
+      <select name="role">
+        <option value="operator">Operador</option>
+        <option value="admin">Administrador</option>
+      </select>
+      <button class="primary-btn" type="submit">Salvar usuario</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

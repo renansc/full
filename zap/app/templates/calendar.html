@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="page-head">
+  <div>
+    <p class="eyebrow">Agenda compartilhada</p>
+    <h1>Google Sheets como agenda operacional</h1>
+    <p class="lead">Use uma planilha compartilhada como agenda da equipe, com sincronização manual ou automatizada dos atendimentos com data marcada.</p>
+  </div>
+  <div class="hero-actions">
+    <button class="primary-btn" id="sync-agenda-btn" type="button">Sincronizar agora</button>
+    <button class="secondary-btn" id="run-reminders-shortcut" type="button">Lembrar agora</button>
+  </div>
+</section>
+
+<section class="settings-grid">
+  <article class="panel">
+    <h2>Configuração ativa</h2>
+    <div class="list-stack">
+      <div class="list-item"><strong>Spreadsheet ID</strong> {{ settings_map.get('GOOGLE_SHEETS_SPREADSHEET_ID', 'não configurado') }}</div>
+      <div class="list-item"><strong>Aba</strong> {{ settings_map.get('GOOGLE_SHEETS_TAB_NAME', 'Agenda') }}</div>
+      <div class="list-item"><strong>Lembrete</strong> {{ settings_map.get('REMINDER_MINUTES', '120') }} minutos antes</div>
+    </div>
+    {% if auth_url %}
+      <p class="muted">O OAuth do Google Calendar ainda pode ser usado como opção secundária, mas a agenda principal aqui é via Sheets.</p>
+      <a class="secondary-btn" href="{{ auth_url }}">Conectar Google Calendar</a>
+    {% endif %}
+  </article>
+
+  <article class="panel">
+    <h2>Pré-visualização da planilha</h2>
+    <div class="list-stack" id="agenda-preview">
+      {% if preview.rows %}
+        {% for row in preview.rows %}
+          <div class="list-item">
+            <strong>{{ row.get('Cliente', row.get('Ticket ID', 'Linha')) }}</strong>
+            <span>{{ row.get('Serviço', '') }}</span>
+            <span class="muted">{{ row.get('Vencimento', '') }}</span>
+          </div>
+        {% endfor %}
+      {% else %}
+        <p class="muted">Nenhuma linha encontrada ou a planilha ainda não foi configurada.</p>
+      {% endif %}
+    </div>
+  </article>
+
+  <article class="panel">
+    <h2>Como funciona</h2>
+    <ol class="docs-list">
+      <li>Você cria uma planilha no Google Sheets e compartilha com a conta da service account.</li>
+      <li>O app escreve os cards com data marcada na aba configurada.</li>
+      <li>O time acompanha a agenda pela planilha e pelo kanban.</li>
+      <li>Os lembretes podem sair por WhatsApp no horário configurado.</li>
+    </ol>
+  </article>
+</section>
+{% endblock %}

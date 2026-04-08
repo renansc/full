@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero docs-hero">
+  <div>
+    <p class="eyebrow">Documentacao</p>
+    <h1>Guia do Zap Workflow</h1>
+    <p class="lead">Use esta pagina como referencia rapida para rodar o projeto, integrar WhatsApp, conectar a agenda e homologar a operacao em producao.</p>
+  </div>
+  <nav class="docs-links">
+    <a href="#visao-geral">Visao geral</a>
+    <a href="#fluxo-atendimento">Fluxo de atendimento</a>
+    <a href="#instalacao">Instalacao</a>
+    <a href="#integracoes">Integracoes</a>
+    <a href="#producao">Producao</a>
+  </nav>
+</section>
+
+<section class="docs-grid">
+  <article class="panel docs-panel" id="visao-geral">
+    <h2>Visao geral</h2>
+    <ul class="docs-list">
+      <li>Login por usuario com sessao Flask-Login.</li>
+      <li>Kanban com estados, departamentos e etiquetas personalizaveis.</li>
+      <li>Cadastro rapido de cliente, servico e historico de conversa.</li>
+      <li>Mensagem de WhatsApp identificando quem falou: cliente ou operador.</li>
+      <li>Tickets novos entram em <strong>Aguardando</strong> e podem trocar de departamento.</li>
+      <li>Cards concluidos ha mais de 2 dias saem da tela automaticamente.</li>
+      <li>Agenda compartilhada via Google Sheets e lembretes programados.</li>
+    </ul>
+  </article>
+
+  <article class="panel docs-panel" id="fluxo-atendimento">
+    <h2>Fluxo de atendimento</h2>
+    <div class="flowchart">
+      <div class="flow-node">Mensagem chega no WhatsApp</div>
+      <div class="flow-arrow">v</div>
+      <div class="flow-node">Webhook cria conversa e ticket</div>
+      <div class="flow-arrow">v</div>
+      <div class="flow-node">Card nasce em Aguardando</div>
+      <div class="flow-arrow">v</div>
+      <div class="flow-node">Operador move para departamento correto</div>
+      <div class="flow-arrow">v</div>
+      <div class="flow-node">Finaliza o card e o sistema arquiva em 2 dias</div>
+    </div>
+  </article>
+
+  <article class="panel docs-panel" id="instalacao">
+    <h2>Instalacao local</h2>
+    <pre class="code-block">python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+copy .env.example .env
+python -m flask --app wsgi:app init-db
+python -m flask --app wsgi:app run</pre>
+    <p class="muted">O banco pode ser MySQL ou PostgreSQL via <code>DATABASE_URL</code>.</p>
+  </article>
+
+  <article class="panel docs-panel" id="integracoes">
+    <h2>Integracoes sem custo inicial</h2>
+    <ol class="docs-list">
+      <li>Crie o app na Meta e habilite o WhatsApp Cloud API.</li>
+      <li>Copie o Phone Number ID, Access Token e Verify Token.</li>
+      <li>Use Google Sheets para a agenda compartilhada.</li>
+      <li>Se preferir validar localmente, exponha o webhook com ngrok e configure PUBLIC_BASE_URL.</li>
+      <li>Preencha as variaveis de ambiente no menu Configuracao.</li>
+    </ol>
+    <div class="link-stack">
+      <a href="https://developers.facebook.com/docs/whatsapp/" target="_blank" rel="noreferrer">Docs oficiais do WhatsApp</a>
+      <a href="https://developers.google.com/sheets/api" target="_blank" rel="noreferrer">Docs oficiais do Google Sheets</a>
+      <a href="https://ngrok.com/docs" target="_blank" rel="noreferrer">Docs do ngrok</a>
+    </div>
+  </article>
+
+  <article class="panel docs-panel">
+    <h2>Fluxo de integracoes</h2>
+    <div class="flowchart">
+      <div class="flow-node">Configura token e planilha</div>
+      <div class="flow-arrow">-></div>
+      <div class="flow-node">Sistema envia/recebe mensagens</div>
+      <div class="flow-arrow">-></div>
+      <div class="flow-node">Agenda sincroniza com Google Sheets</div>
+      <div class="flow-arrow">-></div>
+      <div class="flow-node">Lembretes disparam no horario definido</div>
+    </div>
+  </article>
+
+  <article class="panel docs-panel">
+    <h2>Webhook com ngrok</h2>
+    <ol class="docs-list">
+      <li>Rode o app localmente na porta 5000.</li>
+      <li>Abra um tunnel com <code>ngrok http 5000</code>.</li>
+      <li>Copie a URL publica exibida pelo ngrok.</li>
+      <li>Defina <code>PUBLIC_BASE_URL</code> com essa URL no .env.</li>
+      <li>Use a callback completa <code>/webhooks/whatsapp</code>.</li>
+    </ol>
+  </article>
+
+  <article class="panel docs-panel" id="producao">
+    <h2>Homologacao e producao</h2>
+    <ol class="docs-list">
+      <li>Suba em homologacao usando o banco de testes.</li>
+      <li>Revise os estados, departamentos e usuarios no menu Configuracao.</li>
+      <li>Teste o webhook do WhatsApp com mensagem real e confira o ticket novo.</li>
+      <li>Teste a agenda e os lembretes antes de liberar para a equipe.</li>
+      <li>Quando validar, publique a revisao no GitHub e faca deploy da mesma versao.</li>
+    </ol>
+  </article>
+
+  <article class="panel docs-panel">
+    <h2>Endpoints principais</h2>
+    <ul class="docs-list">
+      <li><code>GET /</code> - kanban principal.</li>
+      <li><code>GET /docs</code> - documentacao no menu.</li>
+      <li><code>GET /calendar</code> - tela da agenda.</li>
+      <li><code>GET /api/dashboard</code> - dados do kanban e departamentos.</li>
+      <li><code>GET /api/integrations/status</code> - status das integracoes.</li>
+      <li><code>GET /webhooks/whatsapp</code> e <code>POST /webhooks/whatsapp</code> - webhook WhatsApp.</li>
+      <li><code>POST /api/whatsapp/send</code> - envio manual de mensagem.</li>
+    </ul>
+  </article>
+</section>
+{% endblock %}

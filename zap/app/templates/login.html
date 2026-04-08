@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="pt-br">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Entrar - Zap Workflow</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body class="login-page">
+    <section class="login-card">
+      <div>
+        <p class="eyebrow">Centralização comercial</p>
+        <h1>Entre no Zap Workflow</h1>
+        <p class="lead">Acesse o kanban, a agenda e os fluxos de atendimento com login por usuário.</p>
+      </div>
+      <form method="post" class="form-stack">
+        <label>E-mail
+          <input type="email" name="email" placeholder="admin@empresa.com" required>
+        </label>
+        <label>Senha
+          <input type="password" name="password" placeholder="********" required>
+        </label>
+        <button type="submit" class="primary-btn">Entrar</button>
+      </form>
+    </section>
+  </body>
+</html>

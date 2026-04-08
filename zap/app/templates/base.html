@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="pt-br">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title or 'Zap Workflow' }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+  </head>
+  <body data-user='{{ user_payload|tojson if user_payload else "{}" }}'>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">Z</div>
+          <div>
+            <strong>Zap Workflow</strong>
+            <p>Kanban operacional</p>
+          </div>
+        </div>
+        <nav class="nav">
+          <a href="{{ url_for('main.index') }}">Kanban</a>
+          <a href="{{ url_for('main.calendar') }}">Agenda Compartilhada</a>
+          <a href="{{ url_for('main.docs') }}">Documentacao</a>
+          <a href="{{ url_for('main.settings') }}">Configuracoes</a>
+          <a href="{{ url_for('main.logout') }}">Sair</a>
+        </nav>
+        <div class="sidebar-card">
+          <span>Modo profissional</span>
+          <p>Fluxo com etiquetas, estados, departamentos, conversas e atendimento centralizado.</p>
+        </div>
+      </aside>
+      <main class="main">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% if messages %}
+            <div class="flash-stack">
+              {% for category, message in messages %}
+                <div class="flash {{ category }}">{{ message }}</div>
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+      </main>
+    </div>
+    <audio id="alert-sound" preload="auto">
+      <source src="https://cdn.pixabay.com/audio/2022/03/15/audio_115b3f09dd.mp3" type="audio/mpeg">
+    </audio>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+  </body>
+</html>
