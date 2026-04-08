@@ -79,6 +79,12 @@ DEFAULT_SITE_APPS = [
         "descricao": "Cadastro, consentimento, assinatura digital e contratos em PDF.",
         "href": "/tatoo/",
     },
+    {
+        "slug": "zap",
+        "nome": "Zap Workflow",
+        "descricao": "Atendimento, vendas e fluxo operacional do WhatsApp.",
+        "href": "/zap/",
+    },
 ]
 
 BPA_API_BASE_URL = str(os.getenv("BPA_API_BASE_URL", "http://127.0.0.1:5002")).strip().rstrip("/")
@@ -90,6 +96,7 @@ except ValueError:
 PORTAL_PASSWORD = str(os.getenv("PORTAL_PASSWORD", "")).strip()
 PORTAL_SESSION_KEY = "portal_authenticated"
 PORTAL_USER_KEY = "portal_user"
+ZAP_APP_URL = str(os.getenv("ZAP_APP_URL", "https://zap-workflow.onrender.com")).strip().rstrip("/")
 GITHUB_OAUTH_CLIENT_ID = str(os.getenv("GITHUB_OAUTH_CLIENT_ID", "")).strip()
 GITHUB_OAUTH_CLIENT_SECRET = str(os.getenv("GITHUB_OAUTH_CLIENT_SECRET", "")).strip()
 GITHUB_OAUTH_CALLBACK_URL = str(os.getenv("GITHUB_OAUTH_CALLBACK_URL", "")).strip()
@@ -2076,6 +2083,26 @@ def normalize_finance_state(value: Any) -> dict[str, Any]:
 def ensure_site_store(session) -> None:
     has_apps = session.execute(select(SiteApp.id).limit(1)).first() is not None
     if has_apps and store_exists(session, STORE_SITE):
+        existing_apps = session.execute(select(SiteApp).order_by(SiteApp.sort_order, SiteApp.id)).scalars().all()
+        existing_slugs = {app.slug for app in existing_apps}
+        missing_defaults = [app for app in DEFAULT_SITE_APPS if app["slug"] not in existing_slugs]
+        if not missing_defaults:
+            return
+
+        next_sort_order = max((app.sort_order for app in existing_apps), default=-1) + 1
+        for app in missing_defaults:
+            session.add(
+                SiteApp(
+                    slug=app["slug"],
+                    name=app["nome"],
+                    description=app["descricao"],
+                    href=app["href"],
+                    sort_order=next_sort_order,
+                )
+            )
+            next_sort_order += 1
+
+        touch_store(session, STORE_SITE)
         return
     replace_site_store(session, DEFAULT_SITE_APPS)
 
@@ -2810,6 +2837,13 @@ def get_site_apps():
         updated_at = get_store_updated_at(session, STORE_SITE)
 
     return jsonify({"apps": apps, "updatedAt": updated_at})
+
+
+@app.get("/zap")
+@app.get("/zap/")
+def open_zap_workflow():
+    zap_url = ZAP_APP_URL if ZAP_APP_URL else "https://zap-workflow.onrender.com"
+    return redirect(f"{zap_url.rstrip('/')}/", code=302)
 
 
 @app.route("/api/bpa/<path:requested_path>", methods=["GET", "POST", "PUT", "DELETE"])

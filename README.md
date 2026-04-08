@@ -6,7 +6,7 @@ Repositorio preparado para deploy da FULL com rotas dedicadas:
 - `/bpa/` -> modulo BPA
 - `/financeiro/` -> financeiro
 - `/gpsmusical/` -> GPS Musical
-- `/zap/` -> Zap Workflow
+- `/zap/` -> Zap Workflow, com redirecionamento para o deploy separado no Render
 
 ## Estrutura
 
