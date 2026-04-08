@@ -28,6 +28,7 @@ from sqlalchemy import Boolean, Float, Integer, String, Text, create_engine, del
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 from werkzeug.exceptions import HTTPException
+from werkzeug.middleware.dispatcher import DispatcherMiddleware
 
 try:
     from PIL import Image, ImageOps
@@ -96,7 +97,6 @@ except ValueError:
 PORTAL_PASSWORD = str(os.getenv("PORTAL_PASSWORD", "")).strip()
 PORTAL_SESSION_KEY = "portal_authenticated"
 PORTAL_USER_KEY = "portal_user"
-ZAP_APP_URL = str(os.getenv("ZAP_APP_URL", "https://zap-workflow.onrender.com")).strip().rstrip("/")
 GITHUB_OAUTH_CLIENT_ID = str(os.getenv("GITHUB_OAUTH_CLIENT_ID", "")).strip()
 GITHUB_OAUTH_CLIENT_SECRET = str(os.getenv("GITHUB_OAUTH_CLIENT_SECRET", "")).strip()
 GITHUB_OAUTH_CALLBACK_URL = str(os.getenv("GITHUB_OAUTH_CALLBACK_URL", "")).strip()
@@ -2614,6 +2614,15 @@ app = Flask(__name__)
 app.config["JSON_SORT_KEYS"] = False
 app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY") or os.getenv("SECRET_KEY") or secrets.token_hex(32)
 
+try:
+    from zap.app import create_app as create_zap_app
+except Exception as exc:  # pragma: no cover - optional embedded app
+    create_zap_app = None
+    app.logger.warning("Zap app not mounted: %s", exc)
+else:
+    zap_app = create_zap_app()
+    app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {"/zap": zap_app})
+
 max_body_size = parse_size(os.getenv("MAX_BODY_SIZE", "25mb"))
 if max_body_size is not None:
     app.config["MAX_CONTENT_LENGTH"] = max_body_size
@@ -2837,13 +2846,6 @@ def get_site_apps():
         updated_at = get_store_updated_at(session, STORE_SITE)
 
     return jsonify({"apps": apps, "updatedAt": updated_at})
-
-
-@app.get("/zap")
-@app.get("/zap/")
-def open_zap_workflow():
-    zap_url = ZAP_APP_URL if ZAP_APP_URL else "https://zap-workflow.onrender.com"
-    return redirect(f"{zap_url.rstrip('/')}/", code=302)
 
 
 @app.route("/api/bpa/<path:requested_path>", methods=["GET", "POST", "PUT", "DELETE"])
