@@ -47,8 +47,7 @@ def _public_base_url():
 
 
 def _whatsapp_webhook_url():
-    base_url = _public_base_url()
-    return f"{base_url}/webhooks/whatsapp" if base_url else ""
+    return url_for("main.whatsapp_webhook", _external=True)
 
 
 def _setting_bool(settings_map, key, default=False):

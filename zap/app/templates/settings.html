@@ -73,10 +73,10 @@
   <article class="panel">
     <h2>Webhook WhatsApp</h2>
     <div class="list-stack">
-      <div class="list-item"><strong>Callback URL</strong> <code>{{ whatsapp_webhook_url or 'Defina PUBLIC_BASE_URL' }}</code></div>
+      <div class="list-item"><strong>Callback URL</strong> <code>{{ whatsapp_webhook_url }}</code></div>
       <div class="list-item"><strong>Verify token</strong> <code>{{ settings_map.get('WHATSAPP_VERIFY_TOKEN', 'zap_verify_2026_04') }}</code></div>
     </div>
-    <p class="muted">Use a URL publica do ngrok ou do dominio final. Exemplo: https://abcd-1234.ngrok-free.app/webhooks/whatsapp</p>
+    <p class="muted">Use a URL publica do ngrok ou do dominio final. No modo embutido da Nanotech, a callback fica em <code>/zap/webhooks/whatsapp</code>. Em deploy standalone, fica em <code>/webhooks/whatsapp</code>.</p>
   </article>
 
   <article class="panel">

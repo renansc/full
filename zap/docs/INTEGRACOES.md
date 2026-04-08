@@ -73,6 +73,10 @@ No Render, a URL publica e fornecida por `RENDER_EXTERNAL_URL`. Se quiser fixar 
 
 - `https://seu-app.onrender.com/webhooks/whatsapp`
 
+Se o Zap estiver embutido na Nanotech, use:
+
+- `https://nanotech-lvoz.onrender.com/zap/webhooks/whatsapp`
+
 No ambiente local, o ngrok continua opcional para testes. No Render, nao precisa dele.
 
 Depois use a URL publica no painel da Meta.
@@ -80,6 +84,8 @@ Depois use a URL publica no painel da Meta.
 ### 4. Verificacao
 
 O endpoint `GET /webhooks/whatsapp` valida `hub.verify_token`.
+
+Quando o app roda embutido na Nanotech, a mesma rota fica acessivel em `/zap/webhooks/whatsapp`.
 
 Se estiver correto, o servidor responde com `hub.challenge`.
 

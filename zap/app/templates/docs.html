@@ -95,6 +95,15 @@ python -m flask --app wsgi:app run</pre>
     </ol>
   </article>
 
+  <article class="panel docs-panel">
+    <h2>Webhook na Nanotech</h2>
+    <ol class="docs-list">
+      <li>Se o Zap estiver embutido na Nanotech, a URL publica precisa incluir o prefixo <code>/zap</code>.</li>
+      <li>Use <code>https://nanotech-lvoz.onrender.com/zap/webhooks/whatsapp</code> como callback na Meta.</li>
+      <li>Garanta que o <code>WHATSAPP_VERIFY_TOKEN</code> no servidor seja exatamente igual ao configurado na Meta.</li>
+    </ol>
+  </article>
+
   <article class="panel docs-panel" id="producao">
     <h2>Homologacao e producao</h2>
     <ol class="docs-list">
