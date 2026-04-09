@@ -30,6 +30,7 @@ Sistema web em Flask para vendas e prestacao de servicos com:
 5. No Render, o app usa `RENDER_EXTERNAL_URL` automaticamente. Se o Zap estiver embutido na Nanotech, a callback publica fica em `/zap/webhooks/whatsapp`; se estiver standalone, fica em `/webhooks/whatsapp`.
 6. Inicialize o banco com `init-db`.
 7. Abra o sistema e revise o menu Configuracao.
+8. Se o Zap rodar no mesmo dominio da Nanotech, mantenha `SESSION_COOKIE_NAME=zap_session` para evitar conflito de login com o portal principal.
 
 ## Rodar localmente
 

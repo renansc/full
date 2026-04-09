@@ -3,6 +3,7 @@ import os
 
 class BaseConfig:
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key")
+    SESSION_COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "zap_session")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///zap.db")
     UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "instance/uploads")

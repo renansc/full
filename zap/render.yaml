@@ -12,3 +12,5 @@ services:
         value: production
       - key: PYTHON_VERSION
         value: 3.11.9
+      - key: SESSION_COOKIE_NAME
+        value: zap_session
