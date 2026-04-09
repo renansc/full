@@ -93,6 +93,7 @@
       <label><input name="WHATSAPP_ENABLE_MEDIA" type="checkbox" {% if settings_map.get('WHATSAPP_ENABLE_MEDIA', 'true') in ['true', '1', 'yes', 'on'] %}checked{% endif %}> Enviar midia e anexos</label>
       <button class="primary-btn" type="submit">Salvar WhatsApp</button>
     </form>
+    <p class="muted">Se a conversa ainda nao passou pela janela de 24 horas, a Meta normalmente exige um template aprovado para iniciar o contato. Se o app estiver em modo de desenvolvimento, confirme tambem se o numero do destinatario esta liberado para teste no app da Meta.</p>
   </article>
 
   <article class="panel">

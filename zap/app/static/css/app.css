@@ -127,6 +127,7 @@ button, input, textarea { font: inherit; }
   background: linear-gradient(180deg, rgba(15, 23, 42, 0.95), rgba(12, 19, 33, 0.88));
   border: 1px solid rgba(148, 163, 184, 0.14);
   cursor: grab;
+  touch-action: manipulation;
 }
 .empty-state {
   grid-column: 1 / -1;
@@ -141,6 +142,24 @@ button, input, textarea { font: inherit; }
 .ticket-id { color: var(--muted); font-size: 0.8rem; }
 .ticket-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .label-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+.ticket-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.ticket-nav-btn {
+  flex: 1 1 0;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 12px;
+  background: rgba(148, 163, 184, 0.1);
+  color: var(--text);
+  padding: 10px 12px;
+  cursor: pointer;
+}
+.ticket-nav-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
 .label-chip {
   display: inline-flex;
   align-items: center;
@@ -300,6 +319,7 @@ button, input, textarea { font: inherit; }
 .conversation-contact { margin: 4px 0 0; color: var(--muted); }
 .message-form { display: grid; gap: 10px; }
 .message-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.message-status { margin: 0; min-height: 1.4em; }
 
 .flash-stack { display: grid; gap: 8px; margin-bottom: 16px; }
 .flash { padding: 12px 14px; border-radius: 14px; background: rgba(148, 163, 184, 0.08); }
@@ -315,4 +335,21 @@ button, input, textarea { font: inherit; }
   .sidebar { border-right: none; border-bottom: 1px solid var(--panel-border); }
   .hero, .page-head { align-items: start; flex-direction: column; }
   .details-grid { grid-template-columns: 1fr; }
+  .main { padding: 18px; }
+  .board { grid-template-columns: 1fr; }
+  .ticket-card { padding: 12px; }
+  .column { padding: 12px; }
+}
+
+@media (max-width: 640px) {
+  .sidebar { padding: 20px 16px; }
+  .nav a, .sidebar-card { border-radius: 16px; }
+  .hero h1, .page-head h1, .login-card h1 { font-size: clamp(1.7rem, 8vw, 2.6rem); }
+  .hero-actions { width: 100%; }
+  .primary-btn, .secondary-btn, .quick-reply, .icon-btn, .ticket-nav-btn { min-height: 46px; }
+  .message-actions { flex-direction: column; }
+  .message-actions .secondary-btn,
+  .message-actions .primary-btn { width: 100%; }
+  .modal { padding: 10px; }
+  .modal-card { padding: 16px; border-radius: 20px; }
 }

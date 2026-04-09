@@ -6,6 +6,7 @@ const feedbackEl = document.getElementById("client-feedback");
 let currentTicketId = null;
 let availableLabels = [];
 let availableDepartments = [];
+let availableStates = [];
 
 function apiUrl(path) {
   if (/^https?:\/\//i.test(path)) return path;
@@ -84,6 +85,7 @@ async function loadReferenceData() {
   if (!response.ok) {
     throw new Error(data.description || data.error || "Falha ao carregar o kanban");
   }
+  availableStates = data.states || [];
   availableLabels = data.labels || [];
   availableDepartments = data.departments || [];
   renderLabelPicker(document.getElementById("ticket-label-picker"), availableLabels, []);
@@ -112,6 +114,23 @@ function formatDateTimeLocal(value) {
   if (Number.isNaN(date.getTime())) return "";
   const offset = date.getTimezoneOffset() * 60000;
   return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
+function getTicketStateIndex(stateId) {
+  return availableStates.findIndex((state) => String(state.id) === String(stateId));
+}
+
+function getAdjacentStateId(stateId, delta) {
+  const index = getTicketStateIndex(stateId);
+  if (index < 0) return null;
+  const target = availableStates[index + delta];
+  return target ? target.id : null;
+}
+
+async function updateTicketState(ticketId, statusId) {
+  if (!statusId) return;
+  await csrfJson(`/api/tickets/${ticketId}`, "PATCH", { status_id: statusId });
+  await loadReferenceData();
 }
 
 function renderBoard(states, tickets) {
@@ -169,12 +188,21 @@ function renderTicket(ticket) {
   card.querySelector('[data-field="service"]').textContent = ticket.service || "Sem servico definido";
   card.querySelector('[data-field="department"]').textContent = ticket.department_name || "Sem departamento";
   card.querySelector('[data-field="status"]').textContent = ticket.status_name || "Sem status";
+  const actions = document.createElement("div");
+  actions.className = "ticket-card-actions";
+  const prevStateId = getAdjacentStateId(ticket.status_id, -1);
+  const nextStateId = getAdjacentStateId(ticket.status_id, 1);
+  actions.innerHTML = `
+    <button type="button" class="ticket-nav-btn" data-move-card="prev" ${prevStateId ? "" : "disabled"} aria-label="Mover para a coluna anterior">&larr;</button>
+    <button type="button" class="ticket-nav-btn" data-move-card="next" ${nextStateId ? "" : "disabled"} aria-label="Mover para a coluna seguinte">&rarr;</button>
+  `;
   if (ticket.due_at) {
     const due = document.createElement("p");
     due.className = "muted";
     due.textContent = `Agenda: ${new Date(ticket.due_at).toLocaleString()}`;
     card.appendChild(due);
   }
+  card.appendChild(actions);
   const labelRow = card.querySelector(".label-row");
   ticket.labels.forEach((label) => {
     const chip = document.createElement("span");
@@ -187,6 +215,19 @@ function renderTicket(ticket) {
     if (alertSound) {
       alertSound.volume = 0.15;
       alertSound.play().catch(() => {});
+    }
+  });
+  actions.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-move-card]");
+    if (!button || button.disabled) return;
+    event.stopPropagation();
+    const nextStatusId = button.dataset.moveCard === "prev" ? prevStateId : nextStateId;
+    if (!nextStatusId) return;
+    try {
+      await updateTicketState(ticket.id, nextStatusId);
+      showFeedback("Card movido com sucesso.", "success");
+    } catch (error) {
+      showFeedback(error.message);
     }
   });
   card.addEventListener("click", () => openTicket(ticket.id));
@@ -267,6 +308,7 @@ async function openTicket(ticketId) {
   const messageList = document.getElementById("message-list");
   const conversationMeta = document.getElementById("conversation-meta");
   const conversationContact = document.getElementById("conversation-contact");
+  const messageStatus = document.getElementById("message-status");
   const selectedLabelIds = (data.ticket.labels || []).map((label) => String(label.id));
   form.ticket_id.value = data.ticket.id;
   form.title.value = data.ticket.title;
@@ -282,6 +324,7 @@ async function openTicket(ticketId) {
   conversationContact.textContent = data.conversation.contact_name ? `Contato: ${data.conversation.contact_name}` : "Sem contato identificado";
   conversationMeta.textContent = data.conversation.last_message_at ? `Atualizado em ${new Date(data.conversation.last_message_at).toLocaleString()}` : "Sem mensagens";
   messageList.innerHTML = "";
+  if (messageStatus) messageStatus.textContent = "";
   data.conversation.messages.forEach((message) => {
     messageList.appendChild(renderMessage(message));
   });
@@ -340,16 +383,30 @@ const messageForm = document.getElementById("message-form");
 messageForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!currentTicketId) return;
+  const submitBtn = messageForm.querySelector('button[type="submit"]');
+  const messageStatus = document.getElementById("message-status");
   try {
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Enviando...";
+    }
+    if (messageStatus) messageStatus.textContent = "Enviando mensagem para o WhatsApp...";
     const payload = Object.fromEntries(new FormData(messageForm).entries());
     const result = await csrfJson(`/api/tickets/${currentTicketId}/messages`, "POST", payload);
     if (result.ok) {
       messageForm.reset();
+      if (messageStatus) messageStatus.textContent = "Mensagem enviada com sucesso.";
       await openTicket(currentTicketId);
       if (alertSound) alertSound.play().catch(() => {});
     }
   } catch (error) {
+    if (messageStatus) messageStatus.textContent = "";
     showFeedback(error.message);
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = "Enviar WhatsApp";
+    }
   }
 });
 
