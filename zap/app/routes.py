@@ -390,6 +390,7 @@ def index():
     departments = Department.query.filter_by(is_active=True).order_by(Department.name.asc()).all()
     return render_template(
         "dashboard.html",
+        title="Dashboard Kanban Nanotech",
         states=states,
         labels=labels,
         departments=departments,
