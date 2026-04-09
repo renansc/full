@@ -98,6 +98,25 @@ def _save_whatsapp_media(message_id: str, download_result: dict):
     upload_dir.mkdir(parents=True, exist_ok=True)
     filename = download_result.get("filename") or f"whatsapp_{message_id}"
     safe_name = secure_filename(filename) or f"whatsapp_{message_id}"
+    mime_type = (download_result.get("mime_type") or "").lower()
+    if not Path(safe_name).suffix:
+        extension = mimetypes.guess_extension(mime_type) or ""
+        if mime_type == "image/jpeg":
+            extension = ".jpg"
+        elif mime_type == "image/webp":
+            extension = ".webp"
+        elif mime_type == "audio/ogg":
+            extension = ".ogg"
+        elif mime_type == "application/pdf":
+            extension = ".pdf"
+        elif mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+            extension = ".docx"
+        elif mime_type == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+            extension = ".xlsx"
+        elif mime_type == "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+            extension = ".pptx"
+        if extension:
+            safe_name = f"{safe_name}{extension}"
     final_name = f"{message_id}_{safe_name}"
     file_path = upload_dir / final_name
     content = download_result.get("content") or b""
