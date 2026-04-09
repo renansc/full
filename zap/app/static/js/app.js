@@ -11,6 +11,31 @@ let notificationAudioUnlocked = false;
 let availableLabels = [];
 let availableDepartments = [];
 let availableStates = [];
+const sidebarToggle = document.querySelector("[data-sidebar-toggle]");
+const sidebarStorageKey = "zap.sidebar.collapsed";
+
+function setSidebarCollapsed(collapsed) {
+  document.body.classList.toggle("sidebar-collapsed", collapsed);
+  if (sidebarToggle) {
+    sidebarToggle.setAttribute("aria-expanded", String(!collapsed));
+    sidebarToggle.title = collapsed ? "Expandir menu" : "Minimizar menu";
+  }
+  try {
+    localStorage.setItem(sidebarStorageKey, collapsed ? "1" : "0");
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+try {
+  setSidebarCollapsed(localStorage.getItem(sidebarStorageKey) === "1");
+} catch {
+  setSidebarCollapsed(false);
+}
+
+sidebarToggle?.addEventListener("click", () => {
+  setSidebarCollapsed(!document.body.classList.contains("sidebar-collapsed"));
+});
 
 function apiUrl(path) {
   if (/^https?:\/\//i.test(path)) return path;
