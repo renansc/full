@@ -415,6 +415,21 @@ def api_update_ticket(ticket_id):
     return jsonify({"ok": True})
 
 
+@bp.route("/api/tickets/<int:ticket_id>", methods=["DELETE"])
+@login_required
+def api_delete_ticket(ticket_id):
+    ticket = db.session.get(Ticket, ticket_id) or abort(404)
+    conversation = ticket.conversation
+    if conversation:
+        Message.query.filter_by(conversation_id=conversation.id).delete(synchronize_session=False)
+        db.session.delete(conversation)
+    ReminderLog.query.filter_by(ticket_id=ticket.id).delete(synchronize_session=False)
+    ticket.labels = []
+    db.session.delete(ticket)
+    db.session.commit()
+    return jsonify({"ok": True})
+
+
 @bp.route("/api/tickets/<int:ticket_id>", methods=["GET"])
 @login_required
 def api_get_ticket(ticket_id):

@@ -6,7 +6,10 @@
     <title>{{ title or 'Zap Workflow' }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
   </head>
-  <body data-user='{{ user_payload|tojson if user_payload else "{}" }}'>
+  <body
+    data-user='{{ user_payload|tojson if user_payload else "{}" }}'
+    data-api-base="{{ request.script_root|default('', true) }}"
+  >
     <div class="shell">
       <aside class="sidebar">
         <div class="brand">
@@ -38,6 +41,7 @@
             </div>
           {% endif %}
         {% endwith %}
+        <div class="flash-stack" id="client-feedback" aria-live="polite"></div>
         {% block content %}{% endblock %}
       </main>
     </div>

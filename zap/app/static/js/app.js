@@ -1,12 +1,33 @@
 const boardEl = document.getElementById("board");
 const alertSound = document.getElementById("alert-sound");
 const user = JSON.parse(document.body.dataset.user || "{}");
+const apiBase = document.body.dataset.apiBase || "";
+const feedbackEl = document.getElementById("client-feedback");
 let currentTicketId = null;
 let availableLabels = [];
 let availableDepartments = [];
 
+function apiUrl(path) {
+  if (/^https?:\/\//i.test(path)) return path;
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${apiBase}${normalizedPath}`;
+}
+
+let feedbackTimer = null;
+function showFeedback(message, type = "error") {
+  if (!feedbackEl) {
+    if (type === "error") console.error(message);
+    return;
+  }
+  feedbackEl.innerHTML = `<div class="flash ${type}">${escapeHtml(message)}</div>`;
+  window.clearTimeout(feedbackTimer);
+  feedbackTimer = window.setTimeout(() => {
+    feedbackEl.innerHTML = "";
+  }, type === "error" ? 7000 : 4000);
+}
+
 function csrfJson(url, method, payload) {
-  return fetch(url, {
+  return fetch(apiUrl(url), {
     method,
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
@@ -58,9 +79,11 @@ document.addEventListener("keydown", (event) => {
 });
 
 async function loadReferenceData() {
-  const response = await fetch("/api/dashboard", { credentials: "same-origin" });
+  const response = await fetch(apiUrl("/api/dashboard"), { credentials: "same-origin" });
   const data = await response.json();
-  if (!response.ok) return;
+  if (!response.ok) {
+    throw new Error(data.description || data.error || "Falha ao carregar o kanban");
+  }
   availableLabels = data.labels || [];
   availableDepartments = data.departments || [];
   renderLabelPicker(document.getElementById("ticket-label-picker"), availableLabels, []);
@@ -94,6 +117,15 @@ function formatDateTimeLocal(value) {
 function renderBoard(states, tickets) {
   if (!boardEl) return;
   boardEl.innerHTML = "";
+  if (!states.length) {
+    boardEl.innerHTML = `
+      <div class="empty-state">
+        <h2>Kanban sem estados</h2>
+        <p>Crie pelo menos um estado em Configuracoes para montar as colunas do quadro.</p>
+      </div>
+    `;
+    return;
+  }
   const ticketsByState = new Map(states.map((state) => [state.id, []]));
   tickets.forEach((ticket) => {
     if (!ticketsByState.has(ticket.status_id)) ticketsByState.set(ticket.status_id, []);
@@ -164,22 +196,32 @@ function renderTicket(ticket) {
 const ticketForm = document.getElementById("ticket-form");
 ticketForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
-  const payload = serializeForm(ticketForm);
-  await csrfJson("/api/tickets", "POST", payload);
-  ticketForm.reset();
-  document.getElementById("ticket-modal").classList.remove("open");
-  await loadReferenceData();
+  try {
+    const payload = serializeForm(ticketForm);
+    await csrfJson("/api/tickets", "POST", payload);
+    ticketForm.reset();
+    document.getElementById("ticket-modal").classList.remove("open");
+    showFeedback("Card criado com sucesso.", "success");
+    await loadReferenceData();
+  } catch (error) {
+    showFeedback(error.message);
+  }
 });
 
 function bindSimpleForm(formId, endpoint, transform = (payload) => payload) {
   const form = document.getElementById(formId);
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    const data = Object.fromEntries(new FormData(form).entries());
-    const payload = transform(data, form);
-    await csrfJson(endpoint, "POST", payload);
-    form.reset();
-    location.reload();
+    try {
+      const data = Object.fromEntries(new FormData(form).entries());
+      const payload = transform(data, form);
+      await csrfJson(endpoint, "POST", payload);
+      form.reset();
+      showFeedback("Item criado com sucesso.", "success");
+      location.reload();
+    } catch (error) {
+      showFeedback(error.message);
+    }
   });
 }
 
@@ -202,15 +244,24 @@ bindUserEditForm();
 bindReminderRefresh();
 bindIntegrationStatusRefresh();
 
-if (boardEl || document.querySelector("select[data-department-select]")) loadReferenceData();
-if (document.getElementById("integration-status-list")) loadIntegrationStatus();
-if (document.getElementById("agenda-preview")) loadAgendaPreview();
+if (boardEl || document.querySelector("select[data-department-select]")) {
+  loadReferenceData().catch((error) => showFeedback(error.message));
+}
+if (document.getElementById("integration-status-list")) {
+  loadIntegrationStatus().catch((error) => showFeedback(error.message));
+}
+if (document.getElementById("agenda-preview")) {
+  loadAgendaPreview().catch((error) => showFeedback(error.message));
+}
 
 async function openTicket(ticketId) {
   currentTicketId = ticketId;
-  const response = await fetch(`/api/tickets/${ticketId}`, { credentials: "same-origin" });
+  const response = await fetch(apiUrl(`/api/tickets/${ticketId}`), { credentials: "same-origin" });
   const data = await response.json();
-  if (!response.ok) return;
+  if (!response.ok) {
+    showFeedback(data.description || data.error || "Falha ao abrir o card");
+    return;
+  }
   const modal = document.getElementById("details-modal");
   const form = document.getElementById("details-form");
   const messageList = document.getElementById("message-list");
@@ -260,21 +311,45 @@ const detailsForm = document.getElementById("details-form");
 detailsForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!currentTicketId) return;
-  const payload = serializeForm(detailsForm);
-  await csrfJson(`/api/tickets/${currentTicketId}`, "PATCH", payload);
-  await loadReferenceData();
+  try {
+    const payload = serializeForm(detailsForm);
+    await csrfJson(`/api/tickets/${currentTicketId}`, "PATCH", payload);
+    showFeedback("Card atualizado com sucesso.", "success");
+    await loadReferenceData();
+  } catch (error) {
+    showFeedback(error.message);
+  }
+});
+
+const deleteTicketBtn = document.getElementById("delete-ticket-btn");
+deleteTicketBtn?.addEventListener("click", async () => {
+  if (!currentTicketId) return;
+  if (!window.confirm("Excluir este card? Essa ação nao pode ser desfeita.")) return;
+  try {
+    await csrfJson(`/api/tickets/${currentTicketId}`, "DELETE", {});
+    showFeedback("Card excluido com sucesso.", "success");
+    currentTicketId = null;
+    document.getElementById("details-modal").classList.remove("open");
+    await loadReferenceData();
+  } catch (error) {
+    showFeedback(error.message);
+  }
 });
 
 const messageForm = document.getElementById("message-form");
 messageForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   if (!currentTicketId) return;
-  const payload = Object.fromEntries(new FormData(messageForm).entries());
-  const result = await csrfJson(`/api/tickets/${currentTicketId}/messages`, "POST", payload);
-  if (result.ok) {
-    messageForm.reset();
-    await openTicket(currentTicketId);
-    if (alertSound) alertSound.play().catch(() => {});
+  try {
+    const payload = Object.fromEntries(new FormData(messageForm).entries());
+    const result = await csrfJson(`/api/tickets/${currentTicketId}/messages`, "POST", payload);
+    if (result.ok) {
+      messageForm.reset();
+      await openTicket(currentTicketId);
+      if (alertSound) alertSound.play().catch(() => {});
+    }
+  } catch (error) {
+    showFeedback(error.message);
   }
 });
 
@@ -285,28 +360,44 @@ fileUpload?.addEventListener("change", async () => {
   if (!fileUpload.files?.length) return;
   const formData = new FormData();
   formData.append("file", fileUpload.files[0]);
-  const response = await fetch("/api/uploads", {
-    method: "POST",
-    credentials: "same-origin",
-    body: formData,
-  });
-  const data = await response.json();
-  if (response.ok && messageForm) {
-    messageForm.media_url.value = data.url;
+  try {
+    const response = await fetch(apiUrl("/api/uploads"), {
+      method: "POST",
+      credentials: "same-origin",
+      body: formData,
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.description || data.error || "Falha no upload");
+    if (messageForm) {
+      messageForm.media_url.value = data.url;
+      showFeedback("Arquivo anexado com sucesso.", "success");
+    }
+  } catch (error) {
+    showFeedback(error.message);
   }
 });
 
 const syncAgendaBtn = document.getElementById("sync-agenda-btn");
 syncAgendaBtn?.addEventListener("click", async () => {
-  await csrfJson("/api/agenda/sync", "POST", {});
-  await loadAgendaPreview();
+  try {
+    await csrfJson("/api/agenda/sync", "POST", {});
+    showFeedback("Agenda sincronizada com sucesso.", "success");
+    await loadAgendaPreview();
+  } catch (error) {
+    showFeedback(error.message);
+  }
 });
 
 function bindReminderRefresh() {
   const runRemindersBtn = document.getElementById("run-reminders-btn");
   const runRemindersShortcut = document.getElementById("run-reminders-shortcut");
   const runReminders = async () => {
-    await csrfJson("/api/reminders/run", "POST", {});
+    try {
+      await csrfJson("/api/reminders/run", "POST", {});
+      showFeedback("Lembretes executados com sucesso.", "success");
+    } catch (error) {
+      showFeedback(error.message);
+    }
   };
   runRemindersBtn?.addEventListener("click", runReminders);
   runRemindersShortcut?.addEventListener("click", runReminders);
@@ -314,20 +405,27 @@ function bindReminderRefresh() {
 
 setInterval(async () => {
   if (!boardEl) return;
-  const response = await fetch("/api/messages/poll", { credentials: "same-origin" });
-  if (!response.ok) return;
-  const data = await response.json();
-  if (data.messages && data.messages.length) {
-    if (alertSound) alertSound.play().catch(() => {});
+  try {
+    const response = await fetch(apiUrl("/api/messages/poll"), { credentials: "same-origin" });
+    if (!response.ok) return;
+    const data = await response.json();
+    if (data.messages && data.messages.length) {
+      if (alertSound) alertSound.play().catch(() => {});
+    }
+  } catch (error) {
+    console.warn(error);
   }
 }, 30000);
 
 async function loadAgendaPreview() {
   const previewEl = document.getElementById("agenda-preview");
   if (!previewEl) return;
-  const response = await fetch("/api/agenda/preview", { credentials: "same-origin" });
+  const response = await fetch(apiUrl("/api/agenda/preview"), { credentials: "same-origin" });
   const data = await response.json();
-  if (!response.ok) return;
+  if (!response.ok) {
+    showFeedback(data.description || data.error || "Falha ao carregar a agenda");
+    return;
+  }
   previewEl.innerHTML = "";
   if (!data.rows.length) {
     previewEl.innerHTML = '<p class="muted">Nenhuma linha encontrada na planilha.</p>';
@@ -348,9 +446,12 @@ async function loadAgendaPreview() {
 async function loadIntegrationStatus() {
   const list = document.getElementById("integration-status-list");
   if (!list) return;
-  const response = await fetch("/api/integrations/status", { credentials: "same-origin" });
+  const response = await fetch(apiUrl("/api/integrations/status"), { credentials: "same-origin" });
   const data = await response.json();
-  if (!response.ok) return;
+  if (!response.ok) {
+    showFeedback(data.description || data.error || "Falha ao carregar status das integracoes");
+    return;
+  }
   renderIntegrationStatus(list, data.items || []);
 }
 
@@ -419,8 +520,13 @@ function bindSettingsForm(formId) {
         payload[element.name] = element.value;
       }
     }
-    await csrfJson("/api/settings/bulk", "POST", { settings: payload });
-    location.reload();
+    try {
+      await csrfJson("/api/settings/bulk", "POST", { settings: payload });
+      showFeedback("Configuracao salva com sucesso.", "success");
+      location.reload();
+    } catch (error) {
+      showFeedback(error.message);
+    }
   });
 }
 
@@ -429,9 +535,14 @@ function bindUserCreateForm() {
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
     const payload = Object.fromEntries(new FormData(form).entries());
-    await csrfJson("/api/users", "POST", payload);
-    form.reset();
-    location.reload();
+    try {
+      await csrfJson("/api/users", "POST", payload);
+      form.reset();
+      showFeedback("Usuario criado com sucesso.", "success");
+      location.reload();
+    } catch (error) {
+      showFeedback(error.message);
+    }
   });
 }
 
@@ -458,8 +569,13 @@ function bindUserEditForm() {
     const payload = Object.fromEntries(new FormData(form).entries());
     const userId = payload.id;
     delete payload.id;
-    await csrfJson(`/api/users/${userId}`, "PATCH", payload);
-    modal.classList.remove("open");
-    location.reload();
+    try {
+      await csrfJson(`/api/users/${userId}`, "PATCH", payload);
+      modal.classList.remove("open");
+      showFeedback("Usuario atualizado com sucesso.", "success");
+      location.reload();
+    } catch (error) {
+      showFeedback(error.message);
+    }
   });
 }
