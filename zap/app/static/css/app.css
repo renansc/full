@@ -320,6 +320,34 @@ button, input, textarea { font: inherit; }
 .message-form { display: grid; gap: 10px; }
 .message-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .message-status { margin: 0; min-height: 1.4em; }
+.message-log {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(148, 163, 184, 0.06);
+  min-height: 64px;
+}
+.message-log.empty::before {
+  content: "Logs do WhatsApp aparecerao aqui depois de cada envio.";
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.message-log-entry {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(6, 11, 22, 0.74);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  font-size: 0.88rem;
+}
+.message-log-entry strong { font-size: 0.92rem; }
+.message-log-entry small { color: var(--muted); }
+.message-log-entry.ok { border-left: 4px solid #10b981; }
+.message-log-entry.warn { border-left: 4px solid #f59e0b; }
+.message-log-entry.error { border-left: 4px solid var(--danger); }
 
 .flash-stack { display: grid; gap: 8px; margin-bottom: 16px; }
 .flash { padding: 12px 14px; border-radius: 14px; background: rgba(148, 163, 184, 0.08); }

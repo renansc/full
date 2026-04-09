@@ -3,6 +3,7 @@ const alertSound = document.getElementById("alert-sound");
 const user = JSON.parse(document.body.dataset.user || "{}");
 const apiBase = document.body.dataset.apiBase || "";
 const feedbackEl = document.getElementById("client-feedback");
+const whatsappSendLog = document.getElementById("whatsapp-send-log");
 let currentTicketId = null;
 let availableLabels = [];
 let availableDepartments = [];
@@ -25,6 +26,21 @@ function showFeedback(message, type = "error") {
   feedbackTimer = window.setTimeout(() => {
     feedbackEl.innerHTML = "";
   }, type === "error" ? 7000 : 4000);
+}
+
+function appendWhatsappLog(message, level = "ok") {
+  if (!whatsappSendLog) {
+    console[level === "error" ? "error" : "info"](message);
+    return;
+  }
+  whatsappSendLog.classList.remove("empty");
+  const entry = document.createElement("div");
+  entry.className = `message-log-entry ${level}`;
+  entry.innerHTML = `
+    <strong>${escapeHtml(message)}</strong>
+    <small>${escapeHtml(new Date().toLocaleString())}</small>
+  `;
+  whatsappSendLog.prepend(entry);
 }
 
 function csrfJson(url, method, payload) {
@@ -325,6 +341,10 @@ async function openTicket(ticketId) {
   conversationMeta.textContent = data.conversation.last_message_at ? `Atualizado em ${new Date(data.conversation.last_message_at).toLocaleString()}` : "Sem mensagens";
   messageList.innerHTML = "";
   if (messageStatus) messageStatus.textContent = "";
+  if (whatsappSendLog) {
+    whatsappSendLog.innerHTML = "";
+    whatsappSendLog.classList.add("empty");
+  }
   data.conversation.messages.forEach((message) => {
     messageList.appendChild(renderMessage(message));
   });
@@ -385,22 +405,30 @@ messageForm?.addEventListener("submit", async (event) => {
   if (!currentTicketId) return;
   const submitBtn = messageForm.querySelector('button[type="submit"]');
   const messageStatus = document.getElementById("message-status");
+  const recipient = messageForm.querySelector('input[name="client_phone"]')?.value || "";
   try {
     if (submitBtn) {
       submitBtn.disabled = true;
       submitBtn.textContent = "Enviando...";
     }
     if (messageStatus) messageStatus.textContent = "Enviando mensagem para o WhatsApp...";
+    appendWhatsappLog(`Enviando para ${recipient || "telefone do card"}`, "warn");
     const payload = Object.fromEntries(new FormData(messageForm).entries());
     const result = await csrfJson(`/api/tickets/${currentTicketId}/messages`, "POST", payload);
     if (result.ok) {
       messageForm.reset();
-      if (messageStatus) messageStatus.textContent = "Mensagem enviada com sucesso.";
       await openTicket(currentTicketId);
+      const messageId = result.whatsapp?.data?.messages?.[0]?.id || result.message_id || "sem id";
+      if (messageStatus) messageStatus.textContent = `Aceita pela Meta. ID: ${messageId}`;
+      appendWhatsappLog(
+        `Aceita pela Meta com status ${result.whatsapp?.status_code || "200"} e id ${messageId}`,
+        "ok"
+      );
       if (alertSound) alertSound.play().catch(() => {});
     }
   } catch (error) {
-    if (messageStatus) messageStatus.textContent = "";
+    if (messageStatus) messageStatus.textContent = `Erro no envio: ${error.message}`;
+    appendWhatsappLog(`Erro no envio: ${error.message}`, "error");
     showFeedback(error.message);
   } finally {
     if (submitBtn) {

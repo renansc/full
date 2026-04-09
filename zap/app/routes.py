@@ -563,6 +563,15 @@ def api_ticket_message(ticket_id):
         if isinstance(messages, list) and messages:
             message.external_id = messages[0].get("id")
     db.session.commit()
+    current_app.logger.info(
+        "whatsapp_send ticket_id=%s phone=%s ok=%s status_code=%s error=%s response=%s",
+        ticket.id,
+        ticket.client_phone,
+        send_result.get("ok"),
+        send_result.get("status_code"),
+        send_result.get("error", ""),
+        send_result.get("data", {}),
+    )
     if not send_result.get("ok"):
         return jsonify({"ok": False, "error": send_result.get("error", "Falha no envio do WhatsApp."), "message_id": message.id, "whatsapp": send_result}), 502
     return jsonify({"ok": True, "message_id": message.id, "whatsapp": send_result})
@@ -923,6 +932,15 @@ def api_whatsapp_send():
             to=to,
             body=(payload.get("body") or "").strip(),
         )
+    current_app.logger.info(
+        "whatsapp_api_send to=%s type=%s ok=%s status_code=%s error=%s response=%s",
+        to,
+        message_type,
+        result.get("ok"),
+        result.get("status_code"),
+        result.get("error", ""),
+        result.get("data", {}),
+    )
     if not result.get("ok"):
         return jsonify({"ok": False, "error": result.get("error", "Falha no envio do WhatsApp."), "whatsapp": result}), 502
     return jsonify(result)
