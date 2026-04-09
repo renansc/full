@@ -13,7 +13,9 @@ let availableDepartments = [];
 let availableStates = [];
 let quickReplyShortcutMap = new Map();
 let quickReplyEntries = [];
+let quickReplyUsageOrder = [];
 const quickReplySuggestionsEl = document.getElementById("quick-reply-suggestions");
+const quickReplyUsageStorageKey = "zap.quick_reply_usage";
 const sidebarToggle = document.querySelector("[data-sidebar-toggle]");
 const sidebarStorageKey = "zap.sidebar.collapsed";
 
@@ -65,13 +67,57 @@ function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function loadQuickReplyUsageOrder() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(quickReplyUsageStorageKey) || "[]");
+    if (Array.isArray(parsed)) {
+      return parsed.map((item) => String(item || "").trim().toLowerCase()).filter(Boolean);
+    }
+  } catch {
+    // Ignore storage failures.
+  }
+  return [];
+}
+
+function saveQuickReplyUsageOrder() {
+  try {
+    localStorage.setItem(quickReplyUsageStorageKey, JSON.stringify(quickReplyUsageOrder));
+  } catch {
+    // Ignore storage failures.
+  }
+}
+
+function recordQuickReplyUsage(shortcut) {
+  const normalized = String(shortcut || "").trim().toLowerCase();
+  if (!normalized) return;
+  quickReplyUsageOrder = [normalized, ...quickReplyUsageOrder.filter((item) => item !== normalized)].slice(0, 20);
+  saveQuickReplyUsageOrder();
+}
+
+function sortQuickReplyEntries(entries) {
+  const usageRank = new Map(quickReplyUsageOrder.map((shortcut, index) => [shortcut, index]));
+  return [...entries].sort((a, b) => {
+    const rankA = usageRank.has(a.shortcut) ? usageRank.get(a.shortcut) : Number.POSITIVE_INFINITY;
+    const rankB = usageRank.has(b.shortcut) ? usageRank.get(b.shortcut) : Number.POSITIVE_INFINITY;
+    if (rankA !== rankB) return rankA - rankB;
+    return a.shortcut.localeCompare(b.shortcut);
+  });
+}
+
+function previewQuickReplyBody(body, maxLength = 48) {
+  const text = String(body || "").replace(/\s+/g, " ").trim();
+  if (!text) return "";
+  if (text.length <= maxLength) return text;
+  return `${text.slice(0, maxLength - 3)}...`;
+}
+
 function refreshQuickReplyShortcuts() {
-  quickReplyEntries = Array.from(document.querySelectorAll(".quick-reply")).flatMap((button) => {
+  quickReplyEntries = sortQuickReplyEntries(Array.from(document.querySelectorAll(".quick-reply")).flatMap((button) => {
     const shortcut = String(button.dataset.shortcut || "").trim().toLowerCase();
     const body = String(button.dataset.body || "").trim();
     const title = String(button.dataset.title || button.textContent || "").trim();
     return shortcut && body ? [{ shortcut, body, title }] : [];
-  });
+  }));
   quickReplyShortcutMap = new Map(quickReplyEntries.map((item) => [item.shortcut, item.body]));
   updateQuickReplySuggestions();
 }
@@ -114,15 +160,20 @@ function expandQuickReplyDraft(text) {
   let draft = String(text || "");
   quickReplyShortcutMap.forEach((body, shortcut) => {
     const escapedShortcut = escapeRegExp(shortcut);
+    const hasMatch = new RegExp(`(^|\\s)(${escapedShortcut})(?=\\s|$)`, "i").test(draft);
     const pattern = new RegExp(`(^|\\s)(${escapedShortcut})(?=\\s|$)`, "gi");
+    if (hasMatch) {
+      recordQuickReplyUsage(shortcut);
+    }
     draft = draft.replace(pattern, (match, prefix, token) => `${prefix}${body}`);
   });
   return draft;
 }
 
-function insertQuickReply(body) {
+function insertQuickReply(body, shortcut = "") {
   const textarea = getMessageTextarea();
   if (!textarea) return;
+  recordQuickReplyUsage(shortcut);
   insertTextAtCursor(textarea, body);
   textarea.dispatchEvent(new Event("input", { bubbles: true }));
 }
@@ -139,11 +190,12 @@ function getActiveQuickReplyQuery(textarea) {
 function getQuickReplyMatches(query) {
   const normalizedQuery = String(query || "").trim().toLowerCase();
   if (!normalizedQuery) return [];
-  return quickReplyEntries.filter((item) => {
+  const matches = quickReplyEntries.filter((item) => {
     if (item.shortcut.startsWith(normalizedQuery)) return true;
     const searchHaystack = `${item.shortcut} ${item.title} ${item.body}`.toLowerCase();
     return searchHaystack.includes(normalizedQuery.slice(1));
   });
+  return sortQuickReplyEntries(matches);
 }
 
 function renderQuickReplySuggestions(matches) {
@@ -162,7 +214,7 @@ function renderQuickReplySuggestions(matches) {
     button.dataset.title = reply.title;
     button.innerHTML = `
       <strong>${escapeHtml(reply.shortcut)}</strong>
-      <span>${escapeHtml(reply.title || reply.body)}</span>
+      <span>${escapeHtml(previewQuickReplyBody(reply.body || reply.title || ""))}</span>
     `;
     quickReplySuggestionsEl.appendChild(button);
   });
@@ -183,6 +235,7 @@ function expandActiveQuickReply(triggerKey = "") {
   const body = quickReplyShortcutMap.get(token);
   if (!body) return false;
   const trailing = triggerKey === "Tab" || triggerKey === "Enter" || triggerKey === ";" ? " " : "";
+  recordQuickReplyUsage(token);
   return replaceShortcutToken(textarea, token, body, trailing);
 }
 
@@ -304,7 +357,7 @@ document.addEventListener("click", (event) => {
 
   const quickReply = event.target.closest(".quick-reply");
   if (quickReply) {
-    insertQuickReply(quickReply.dataset.body || "");
+    insertQuickReply(quickReply.dataset.body || "", quickReply.dataset.shortcut || "");
     const modal = quickReply.closest(".modal");
     if (modal) closeModal(modal);
     showFeedback("Atalho inserido na mensagem.", "success");
@@ -312,6 +365,7 @@ document.addEventListener("click", (event) => {
 
   const quickSuggestion = event.target.closest(".quick-suggestion");
   if (quickSuggestion) {
+    recordQuickReplyUsage(quickSuggestion.dataset.shortcut || "");
     insertSuggestion({
       shortcut: String(quickSuggestion.dataset.shortcut || "").trim(),
       body: String(quickSuggestion.dataset.body || "").trim(),
@@ -341,6 +395,7 @@ async function loadReferenceData() {
   availableStates = data.states || [];
   availableLabels = data.labels || [];
   availableDepartments = data.departments || [];
+  quickReplyUsageOrder = loadQuickReplyUsageOrder();
   refreshQuickReplyShortcuts();
   renderLabelPicker(document.getElementById("ticket-label-picker"), availableLabels, []);
   populateDepartmentSelects(availableDepartments);
