@@ -109,6 +109,7 @@ def _integration_status(settings_map=None):
     settings_map = settings_map or _settings_map()
     database_uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
     backend = database_uri.split(":", 1)[0] if ":" in database_uri else database_uri
+    database_is_sqlite = backend.startswith("sqlite")
     whatsapp_ready = bool(current_app.config.get("WHATSAPP_TOKEN") and current_app.config.get("WHATSAPP_PHONE_NUMBER_ID"))
     google_ready = bool(settings_map.get("GOOGLE_SERVICE_ACCOUNT_JSON") and settings_map.get("GOOGLE_SHEETS_SPREADSHEET_ID"))
     reminders_ready = _setting_bool(settings_map, "REMINDER_SEND_WHATSAPP", True) and bool(settings_map.get("REMINDER_MINUTES"))
@@ -117,8 +118,8 @@ def _integration_status(settings_map=None):
     return [
         {
             "name": "Banco de dados",
-            "status": "ok" if backend else "warn",
-            "detail": backend or "Nao configurado",
+            "status": "warn" if database_is_sqlite or not backend else "ok",
+            "detail": "SQLite local - dados podem sumir no redeploy" if database_is_sqlite else (backend or "Nao configurado"),
         },
         {
             "name": "WhatsApp Cloud API",
