@@ -398,6 +398,30 @@ body.sidebar-collapsed .sidebar .brand-mark {
 }
 .conversation-contact { margin: 4px 0 0; color: var(--muted); }
 .message-form { display: grid; gap: 10px; }
+.quick-suggestions {
+  display: none;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  background: rgba(148, 163, 184, 0.06);
+}
+.quick-suggestions.open { display: grid; }
+.quick-suggestion {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  background: rgba(6, 11, 22, 0.72);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+}
+.quick-suggestion strong { font-size: 0.92rem; }
+.quick-suggestion span { color: var(--muted); font-size: 0.84rem; }
+.quick-suggestion:hover { border-color: rgba(37, 211, 102, 0.35); }
 .message-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .message-status { margin: 0; min-height: 1.4em; }
 .message-log {
@@ -461,6 +485,7 @@ body.sidebar-collapsed .sidebar .brand-mark {
   .message-actions { flex-direction: column; }
   .message-actions .secondary-btn,
   .message-actions .primary-btn { width: 100%; }
+  .quick-suggestions { gap: 6px; padding: 8px; }
   .modal { padding: 10px; }
   .modal-card { padding: 16px; border-radius: 20px; }
 }

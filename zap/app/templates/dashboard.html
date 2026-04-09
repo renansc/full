@@ -96,6 +96,7 @@
         <div class="message-list" id="message-list"></div>
         <form id="message-form" class="message-form">
           <textarea name="content" placeholder="Digite uma mensagem ou cole uma resposta rapida"></textarea>
+          <div class="quick-suggestions" id="quick-reply-suggestions" aria-live="polite"></div>
           <input type="text" name="media_url" placeholder="Link de arquivo ou midia">
           <div class="message-actions">
             <input type="file" id="file-upload" hidden>
@@ -118,7 +119,7 @@
     </div>
     <div class="quick-grid">
       {% for reply in quick_replies %}
-      <button class="quick-reply" type="button" data-shortcut="{{ reply.shortcut|e }}" data-body="{{ reply.body|e }}" title="Inserir {{ reply.shortcut }}">
+      <button class="quick-reply" type="button" data-shortcut="{{ reply.shortcut|e }}" data-body="{{ reply.body|e }}" data-title="{{ reply.title|e }}" title="Inserir {{ reply.shortcut }}">
         <strong>{{ reply.shortcut }}</strong>
         <span>{{ reply.title }}</span>
       </button>

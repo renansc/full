@@ -12,6 +12,8 @@ let availableLabels = [];
 let availableDepartments = [];
 let availableStates = [];
 let quickReplyShortcutMap = new Map();
+let quickReplyEntries = [];
+const quickReplySuggestionsEl = document.getElementById("quick-reply-suggestions");
 const sidebarToggle = document.querySelector("[data-sidebar-toggle]");
 const sidebarStorageKey = "zap.sidebar.collapsed";
 
@@ -64,13 +66,14 @@ function escapeRegExp(value) {
 }
 
 function refreshQuickReplyShortcuts() {
-  quickReplyShortcutMap = new Map(
-    Array.from(document.querySelectorAll(".quick-reply")).flatMap((button) => {
-      const shortcut = String(button.dataset.shortcut || "").trim().toLowerCase();
-      const body = String(button.dataset.body || "").trim();
-      return shortcut && body ? [[shortcut, body]] : [];
-    })
-  );
+  quickReplyEntries = Array.from(document.querySelectorAll(".quick-reply")).flatMap((button) => {
+    const shortcut = String(button.dataset.shortcut || "").trim().toLowerCase();
+    const body = String(button.dataset.body || "").trim();
+    const title = String(button.dataset.title || button.textContent || "").trim();
+    return shortcut && body ? [{ shortcut, body, title }] : [];
+  });
+  quickReplyShortcutMap = new Map(quickReplyEntries.map((item) => [item.shortcut, item.body]));
+  updateQuickReplySuggestions();
 }
 
 function getMessageTextarea() {
@@ -124,19 +127,75 @@ function insertQuickReply(body) {
   textarea.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
-function expandActiveQuickReply(triggerKey = "") {
-  const textarea = getMessageTextarea();
-  if (!textarea) return false;
+function getActiveQuickReplyQuery(textarea) {
+  if (!textarea) return "";
   const value = textarea.value;
   const caret = textarea.selectionStart ?? value.length;
   const before = value.slice(0, caret);
-  const tokenMatch = before.match(/(?:^|\s)(\/[^\s]+)$/i);
-  if (!tokenMatch) return false;
-  const token = tokenMatch[1].toLowerCase();
+  const match = before.match(/(?:^|\s)(\/[^\s]*)$/i);
+  return match ? match[1].toLowerCase() : "";
+}
+
+function getQuickReplyMatches(query) {
+  const normalizedQuery = String(query || "").trim().toLowerCase();
+  if (!normalizedQuery) return [];
+  return quickReplyEntries.filter((item) => {
+    if (item.shortcut.startsWith(normalizedQuery)) return true;
+    const searchHaystack = `${item.shortcut} ${item.title} ${item.body}`.toLowerCase();
+    return searchHaystack.includes(normalizedQuery.slice(1));
+  });
+}
+
+function renderQuickReplySuggestions(matches) {
+  if (!quickReplySuggestionsEl) return;
+  quickReplySuggestionsEl.innerHTML = "";
+  if (!matches.length) {
+    quickReplySuggestionsEl.classList.remove("open");
+    return;
+  }
+  matches.slice(0, 5).forEach((reply) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "quick-suggestion";
+    button.dataset.shortcut = reply.shortcut;
+    button.dataset.body = reply.body;
+    button.dataset.title = reply.title;
+    button.innerHTML = `
+      <strong>${escapeHtml(reply.shortcut)}</strong>
+      <span>${escapeHtml(reply.title || reply.body)}</span>
+    `;
+    quickReplySuggestionsEl.appendChild(button);
+  });
+  quickReplySuggestionsEl.classList.add("open");
+}
+
+function updateQuickReplySuggestions() {
+  const textarea = getMessageTextarea();
+  const query = getActiveQuickReplyQuery(textarea);
+  renderQuickReplySuggestions(query ? getQuickReplyMatches(query) : []);
+}
+
+function expandActiveQuickReply(triggerKey = "") {
+  const textarea = getMessageTextarea();
+  if (!textarea) return false;
+  const token = getActiveQuickReplyQuery(textarea);
+  if (!token) return false;
   const body = quickReplyShortcutMap.get(token);
   if (!body) return false;
-  const trailing = triggerKey === "Tab" ? " " : "";
+  const trailing = triggerKey === "Tab" || triggerKey === "Enter" || triggerKey === ";" ? " " : "";
   return replaceShortcutToken(textarea, token, body, trailing);
+}
+
+function insertSuggestion(reply) {
+  const textarea = getMessageTextarea();
+  if (!textarea || !reply) return;
+  const query = getActiveQuickReplyQuery(textarea);
+  if (query) {
+    replaceShortcutToken(textarea, query, reply.body, " ");
+  } else {
+    insertTextAtCursor(textarea, reply.body);
+  }
+  textarea.dispatchEvent(new Event("input", { bubbles: true }));
 }
 
 function appendWhatsappLog(message, level = "ok") {
@@ -250,12 +309,23 @@ document.addEventListener("click", (event) => {
     if (modal) closeModal(modal);
     showFeedback("Atalho inserido na mensagem.", "success");
   }
+
+  const quickSuggestion = event.target.closest(".quick-suggestion");
+  if (quickSuggestion) {
+    insertSuggestion({
+      shortcut: String(quickSuggestion.dataset.shortcut || "").trim(),
+      body: String(quickSuggestion.dataset.body || "").trim(),
+      title: String(quickSuggestion.dataset.title || "").trim(),
+    });
+    updateQuickReplySuggestions();
+    showFeedback("Atalho expandido na mensagem.", "success");
+  }
 });
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") document.querySelectorAll(".modal.open").forEach(closeModal);
-  if ((event.key === "Tab" || (event.ctrlKey && event.key === " ")) && document.activeElement === getMessageTextarea()) {
-    if (expandActiveQuickReply(event.key)) {
+  if (document.activeElement === getMessageTextarea()) {
+    if ((event.key === "Tab" || event.key === "Enter" || event.key === ";" || (event.ctrlKey && event.key === " ")) && expandActiveQuickReply(event.key)) {
       event.preventDefault();
       showFeedback("Atalho expandido na mensagem.", "success");
     }
@@ -675,6 +745,7 @@ messageForm?.addEventListener("submit", async (event) => {
     const result = await csrfJson(`/api/tickets/${currentTicketId}/messages`, "POST", payload);
     if (result.ok) {
       messageForm.reset();
+      updateQuickReplySuggestions();
       await openTicket(currentTicketId);
       const messageId = result.whatsapp?.data?.messages?.[0]?.id || result.message_id || "sem id";
       if (messageStatus) messageStatus.textContent = `Aceita pela Meta. ID: ${messageId}`;
@@ -693,6 +764,26 @@ messageForm?.addEventListener("submit", async (event) => {
       submitBtn.disabled = false;
       submitBtn.textContent = "Enviar WhatsApp";
     }
+  }
+});
+
+const messageContentField = messageForm?.querySelector('textarea[name="content"]');
+messageContentField?.addEventListener("input", updateQuickReplySuggestions);
+messageContentField?.addEventListener("click", updateQuickReplySuggestions);
+messageContentField?.addEventListener("keyup", updateQuickReplySuggestions);
+messageForm?.addEventListener("reset", () => {
+  window.setTimeout(updateQuickReplySuggestions, 0);
+});
+messageContentField?.addEventListener("blur", () => {
+  window.setTimeout(() => {
+    if (!document.activeElement || document.activeElement !== quickReplySuggestionsEl) {
+      quickReplySuggestionsEl?.classList.remove("open");
+    }
+  }, 120);
+});
+quickReplySuggestionsEl?.addEventListener("mouseleave", () => {
+  if (document.activeElement !== messageContentField) {
+    quickReplySuggestionsEl.classList.remove("open");
   }
 });
 
