@@ -63,6 +63,10 @@ function showFeedback(message, type = "error") {
   }, type === "error" ? 7000 : 4000);
 }
 
+function sleep(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
 function escapeRegExp(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -324,33 +328,36 @@ function csrfJson(url, method, payload) {
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
     body: JSON.stringify(payload),
-  });
+  }, 0);
 }
 
-function fetchJson(url, options = {}) {
-  return fetch(apiUrl(url), options).then(async (response) => {
-    const raw = await response.text();
-    const contentType = response.headers.get("content-type") || "";
-    let data = {};
-    if (contentType.includes("application/json") || /^[\s\r\n]*[\[{]/.test(raw)) {
-      try {
-        data = JSON.parse(raw || "{}");
-      } catch {
-        data = {};
-      }
+async function fetchJson(url, options = {}, retries = 0) {
+  const response = await fetch(apiUrl(url), options);
+  const raw = await response.text();
+  const contentType = response.headers.get("content-type") || "";
+  let data = {};
+  if (contentType.includes("application/json") || /^[\s\r\n]*[\[{]/.test(raw)) {
+    try {
+      data = JSON.parse(raw || "{}");
+    } catch {
+      data = {};
     }
-    if (response.redirected && /\/login(?:[/?#]|$)/i.test(response.url || "")) {
-      throw new Error("Sua sessao expirou. Entre novamente para continuar.");
+  }
+  if (response.redirected && /\/login(?:[/?#]|$)/i.test(response.url || "")) {
+    throw new Error("Sua sessao expirou. Entre novamente para continuar.");
+  }
+  if (!response.ok) {
+    if (retries > 0 && [502, 503, 504].includes(response.status)) {
+      await sleep(350);
+      return fetchJson(url, options, retries - 1);
     }
-    if (!response.ok) {
-      const message = data.description || data.error || data.message || raw.trim().replace(/<[^>]+>/g, "").trim();
-      if (message) {
-        throw new Error(message);
-      }
-      throw new Error(`Falha na requisicao HTTP ${response.status}`);
+    const message = data.description || data.error || data.message || raw.trim().replace(/<[^>]+>/g, "").trim();
+    if (message) {
+      throw new Error(message);
     }
-    return data;
-  });
+    throw new Error(`Falha na requisicao HTTP ${response.status}`);
+  }
+  return data;
 }
 
 function openModal(id) {
@@ -409,11 +416,7 @@ document.addEventListener("keydown", (event) => {
 });
 
 async function loadReferenceData() {
-  const response = await fetch(apiUrl("/api/dashboard"), { credentials: "same-origin" });
-  const data = await response.json();
-  if (!response.ok) {
-    throw new Error(data.description || data.error || "Falha ao carregar o kanban");
-  }
+  const data = await fetchJson("/api/dashboard", { credentials: "same-origin" }, 2);
   availableStates = data.states || [];
   availableLabels = data.labels || [];
   availableDepartments = data.departments || [];
@@ -632,7 +635,7 @@ if (document.getElementById("agenda-preview")) {
 
 async function openTicket(ticketId) {
   currentTicketId = ticketId;
-  const data = await fetchJson(`/api/tickets/${ticketId}`, { credentials: "same-origin" });
+  const data = await fetchJson(`/api/tickets/${ticketId}`, { credentials: "same-origin" }, 2);
   if (!data.ok) {
     showFeedback(data.description || data.error || "Falha ao abrir o card");
     return;
@@ -684,9 +687,7 @@ function renderMessage(message) {
   bubble.className = `message-bubble ${message.direction}`;
   const meta = document.createElement("span");
   meta.className = "meta";
-  const senderLabel = message.sender_department
-    ? `${message.sender_name} [${message.sender_department}]`
-    : String(message.sender_name || "");
+  const senderLabel = formatSenderLabel(message);
   meta.textContent = `${senderLabel} - ${new Date(message.created_at).toLocaleString()}`;
   bubble.appendChild(meta);
 
@@ -762,6 +763,30 @@ function getAttachmentFilename(url) {
   } catch {
     return String(url || "");
   }
+}
+
+function parseLegacySenderLabel(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return { name: "", department: "" };
+  const match = raw.match(/^\[(.+?)\](?:\s+\[(.+?)\])?$/);
+  if (!match) return { name: raw, department: "" };
+  return {
+    name: (match[1] || "").trim(),
+    department: (match[2] || "").trim(),
+  };
+}
+
+function formatSenderLabel(message) {
+  const senderName = String(message?.sender_name || "").trim();
+  const senderDepartment = String(message?.sender_department || "").trim();
+  if (senderDepartment) {
+    return `${senderName} [${senderDepartment}]`;
+  }
+  const legacy = parseLegacySenderLabel(senderName);
+  if (legacy.department) {
+    return `${legacy.name} [${legacy.department}]`;
+  }
+  return legacy.name || senderName;
 }
 
 function escapeHtml(value) {
@@ -919,9 +944,7 @@ function bindReminderRefresh() {
 setInterval(async () => {
   if (!boardEl) return;
   try {
-    const response = await fetch(apiUrl(`/api/messages/poll?since=${encodeURIComponent(lastMessagePollAt)}`), { credentials: "same-origin" });
-    if (!response.ok) return;
-    const data = await response.json();
+    const data = await fetchJson(`/api/messages/poll?since=${encodeURIComponent(lastMessagePollAt)}`, { credentials: "same-origin" }, 1);
     lastMessagePollAt = data.server_time || new Date().toISOString();
     const incomingMessages = (data.messages || []).filter((message) => message.direction === "incoming");
     if (incomingMessages.length) {
@@ -936,12 +959,7 @@ setInterval(async () => {
 async function loadAgendaPreview() {
   const previewEl = document.getElementById("agenda-preview");
   if (!previewEl) return;
-  const response = await fetch(apiUrl("/api/agenda/preview"), { credentials: "same-origin" });
-  const data = await response.json();
-  if (!response.ok) {
-    showFeedback(data.description || data.error || "Falha ao carregar a agenda");
-    return;
-  }
+  const data = await fetchJson("/api/agenda/preview", { credentials: "same-origin" }, 2);
   previewEl.innerHTML = "";
   if (!data.rows.length) {
     previewEl.innerHTML = '<p class="muted">Nenhuma linha encontrada na planilha.</p>';
@@ -962,12 +980,7 @@ async function loadAgendaPreview() {
 async function loadIntegrationStatus() {
   const list = document.getElementById("integration-status-list");
   if (!list) return;
-  const response = await fetch(apiUrl("/api/integrations/status"), { credentials: "same-origin" });
-  const data = await response.json();
-  if (!response.ok) {
-    showFeedback(data.description || data.error || "Falha ao carregar status das integracoes");
-    return;
-  }
+  const data = await fetchJson("/api/integrations/status", { credentials: "same-origin" }, 2);
   renderIntegrationStatus(list, data.items || []);
 }
 
