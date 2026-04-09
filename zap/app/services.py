@@ -23,6 +23,38 @@ def normalize_whatsapp_phone_number(raw_phone: str, default_country_code: str = 
     return digits
 
 
+def whatsapp_phone_variants(raw_phone: str, default_country_code: str = "55") -> set[str]:
+    variants: set[str] = set()
+    raw_digits = re.sub(r"\D", "", raw_phone or "")
+    if raw_digits.startswith("00"):
+        raw_digits = raw_digits[2:]
+    if raw_digits:
+        variants.add(raw_digits)
+
+    normalized = normalize_whatsapp_phone_number(raw_phone, default_country_code)
+    if normalized:
+        variants.add(normalized)
+
+    def add_brazil_variants(digits: str):
+        if not digits:
+            return
+        national = digits[len(default_country_code) :] if digits.startswith(default_country_code) else digits
+        if len(national) < 10:
+            return
+        ddd = national[:2]
+        local = national[2:]
+        if len(local) == 8:
+            variants.add(f"{default_country_code}{ddd}9{local}")
+            variants.add(f"{ddd}9{local}")
+        elif len(local) == 9 and local.startswith("9"):
+            variants.add(f"{default_country_code}{ddd}{local[1:]}")
+            variants.add(f"{ddd}{local[1:]}")
+
+    add_brazil_variants(raw_digits)
+    add_brazil_variants(normalized)
+    return {variant for variant in variants if variant}
+
+
 def _response_data(response: requests.Response) -> dict:
     if not response.content:
         return {}

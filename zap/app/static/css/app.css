@@ -129,6 +129,10 @@ button, input, textarea { font: inherit; }
   cursor: grab;
   touch-action: manipulation;
 }
+.ticket-card.has-unread {
+  border-color: rgba(248, 113, 113, 0.52);
+  box-shadow: 0 14px 30px rgba(248, 113, 113, 0.08);
+}
 .empty-state {
   grid-column: 1 / -1;
   padding: 24px;
@@ -138,8 +142,23 @@ button, input, textarea { font: inherit; }
 }
 .empty-state h2 { margin: 0 0 8px; }
 .empty-state p { margin: 0; color: var(--muted); line-height: 1.6; }
-.ticket-card header { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 10px; }
+.ticket-card header { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+.ticket-card-head-meta { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .ticket-id { color: var(--muted); font-size: 0.8rem; }
+.ticket-unread-badge {
+  min-width: 22px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ef4444;
+  color: #fff;
+  font-size: 0.74rem;
+  font-weight: 700;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.16);
+}
 .ticket-meta { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
 .label-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
 .ticket-card-actions {
@@ -316,6 +335,28 @@ button, input, textarea { font: inherit; }
 .message-bubble.outgoing { justify-self: end; background: rgba(37, 211, 102, 0.16); }
 .message-bubble.incoming { justify-self: start; }
 .message-bubble .meta { display: block; color: var(--muted); font-size: 0.76rem; margin-bottom: 4px; }
+.message-attachment {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+.message-attachment a {
+  color: var(--accent-2);
+  word-break: break-word;
+}
+.message-attachment img {
+  display: block;
+  max-width: 100%;
+  max-height: 280px;
+  border-radius: 14px;
+  object-fit: cover;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+}
+.message-attachment audio,
+.message-attachment video {
+  width: 100%;
+  max-width: 360px;
+}
 .conversation-contact { margin: 4px 0 0; color: var(--muted); }
 .message-form { display: grid; gap: 10px; }
 .message-actions { display: flex; gap: 10px; flex-wrap: wrap; }

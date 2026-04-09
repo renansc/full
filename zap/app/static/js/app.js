@@ -5,6 +5,7 @@ const apiBase = document.body.dataset.apiBase || "";
 const feedbackEl = document.getElementById("client-feedback");
 const whatsappSendLog = document.getElementById("whatsapp-send-log");
 let currentTicketId = null;
+let lastMessagePollAt = new Date().toISOString();
 let availableLabels = [];
 let availableDepartments = [];
 let availableStates = [];
@@ -204,6 +205,13 @@ function renderTicket(ticket) {
   card.querySelector('[data-field="service"]').textContent = ticket.service || "Sem servico definido";
   card.querySelector('[data-field="department"]').textContent = ticket.department_name || "Sem departamento";
   card.querySelector('[data-field="status"]').textContent = ticket.status_name || "Sem status";
+  const unreadCount = Number(ticket.unread_count || 0);
+  const unreadBadge = card.querySelector('[data-field="unread"]');
+  if (unreadBadge) {
+    unreadBadge.hidden = unreadCount <= 0;
+    unreadBadge.textContent = unreadCount > 99 ? "99+" : String(unreadCount);
+  }
+  card.classList.toggle("has-unread", unreadCount > 0);
   const actions = document.createElement("div");
   actions.className = "ticket-card-actions";
   const prevStateId = getAdjacentStateId(ticket.status_id, -1);
@@ -255,10 +263,10 @@ ticketForm?.addEventListener("submit", async (event) => {
   event.preventDefault();
   try {
     const payload = serializeForm(ticketForm);
-    await csrfJson("/api/tickets", "POST", payload);
+    const result = await csrfJson("/api/tickets", "POST", payload);
     ticketForm.reset();
     document.getElementById("ticket-modal").classList.remove("open");
-    showFeedback("Card criado com sucesso.", "success");
+    showFeedback(result.merged ? "Card existente reutilizado para esse telefone." : "Card criado com sucesso.", "success");
     await loadReferenceData();
   } catch (error) {
     showFeedback(error.message);
@@ -349,16 +357,98 @@ async function openTicket(ticketId) {
     messageList.appendChild(renderMessage(message));
   });
   modal.classList.add("open");
+  markTicketAsRead(ticketId);
+}
+
+async function markTicketAsRead(ticketId) {
+  try {
+    await csrfJson(`/api/tickets/${ticketId}/read`, "POST", {});
+    await loadReferenceData();
+  } catch (error) {
+    console.warn("Nao foi possivel marcar mensagens como lidas.", error);
+  }
 }
 
 function renderMessage(message) {
   const bubble = document.createElement("article");
   bubble.className = `message-bubble ${message.direction}`;
-  bubble.innerHTML = `
-    <span class="meta">${message.sender_name} - ${new Date(message.created_at).toLocaleString()}</span>
-    <div>${escapeHtml(message.content || message.media_url || "")}</div>
-  `;
+  const meta = document.createElement("span");
+  meta.className = "meta";
+  meta.textContent = `${message.sender_name} - ${new Date(message.created_at).toLocaleString()}`;
+  bubble.appendChild(meta);
+
+  if (message.content) {
+    const text = document.createElement("div");
+    text.textContent = message.content;
+    bubble.appendChild(text);
+  }
+
+  if (message.media_url) {
+    bubble.appendChild(renderAttachment(message.media_url));
+  }
   return bubble;
+}
+
+function renderAttachment(mediaUrl) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "message-attachment";
+  const resolvedUrl = apiUrl(mediaUrl);
+  const kind = guessAttachmentKind(resolvedUrl);
+  const filename = getAttachmentFilename(resolvedUrl);
+
+  if (kind === "image") {
+    const link = document.createElement("a");
+    link.href = resolvedUrl;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    const img = document.createElement("img");
+    img.src = resolvedUrl;
+    img.alt = filename || "Anexo de imagem";
+    img.loading = "lazy";
+    link.appendChild(img);
+    wrapper.appendChild(link);
+    return wrapper;
+  }
+
+  if (kind === "video" || kind === "audio") {
+    const media = document.createElement(kind);
+    media.src = resolvedUrl;
+    media.controls = true;
+    media.preload = "metadata";
+    wrapper.appendChild(media);
+  }
+
+  const link = document.createElement("a");
+  link.href = resolvedUrl;
+  link.target = "_blank";
+  link.rel = "noreferrer";
+  link.textContent = filename || "Abrir anexo";
+  wrapper.appendChild(link);
+  return wrapper;
+}
+
+function guessAttachmentKind(url) {
+  const path = (() => {
+    try {
+      return new URL(url, window.location.href).pathname;
+    } catch {
+      return String(url || "");
+    }
+  })().toLowerCase();
+  if (/\.(png|jpe?g|gif|webp|bmp|svg)$/.test(path)) return "image";
+  if (/\.(mp4|webm|mov|mkv)$/.test(path)) return "video";
+  if (/\.(mp3|wav|ogg|m4a)$/.test(path)) return "audio";
+  return "document";
+}
+
+function getAttachmentFilename(url) {
+  try {
+    const pathname = new URL(url, window.location.href).pathname;
+    const filename = pathname.split("/").pop() || "";
+    return decodeURIComponent(filename);
+  } catch {
+    return String(url || "");
+  }
 }
 
 function escapeHtml(value) {
@@ -491,11 +581,14 @@ function bindReminderRefresh() {
 setInterval(async () => {
   if (!boardEl) return;
   try {
-    const response = await fetch(apiUrl("/api/messages/poll"), { credentials: "same-origin" });
+    const response = await fetch(apiUrl(`/api/messages/poll?since=${encodeURIComponent(lastMessagePollAt)}`), { credentials: "same-origin" });
     if (!response.ok) return;
     const data = await response.json();
-    if (data.messages && data.messages.length) {
+    lastMessagePollAt = data.server_time || new Date().toISOString();
+    const incomingMessages = (data.messages || []).filter((message) => message.direction === "incoming");
+    if (incomingMessages.length) {
       if (alertSound) alertSound.play().catch(() => {});
+      loadReferenceData().catch((error) => console.warn(error));
     }
   } catch (error) {
     console.warn(error);

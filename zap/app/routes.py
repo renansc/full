@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, send_from_directory, url_for
@@ -21,6 +21,7 @@ from .services import (
     send_whatsapp_template,
     send_whatsapp_text,
     sync_tickets_to_sheet,
+    whatsapp_phone_variants,
 )
 
 
@@ -53,6 +54,91 @@ def _whatsapp_webhook_url():
 
 def _normalized_phone(value):
     return normalize_whatsapp_phone_number(value)
+
+
+def _utc_iso(dt):
+    if not dt:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt = dt.astimezone(timezone.utc)
+    return dt.isoformat().replace("+00:00", "Z")
+
+
+def _sender_label():
+    user_name = (current_user.name or "usuario").strip()
+    parts = [f"[{user_name}]"]
+    department_name = (current_user.department.name if current_user.department else "").strip()
+    if department_name:
+        parts.append(f"[{department_name.lower()}]")
+    return " ".join(parts)
+
+
+def _outgoing_message_body(value):
+    body = (value or "").strip()
+    if not body:
+        return ""
+    return f"{_sender_label()} {body}"
+
+
+def _outgoing_message_content(text: str, media_url: str = ""):
+    text = (text or "").strip()
+    media_url = (media_url or "").strip()
+    if text:
+        return _outgoing_message_body(text)
+    if media_url:
+        return f"{_sender_label()} [anexo]"
+    return ""
+
+
+def _phone_variants(value):
+    return whatsapp_phone_variants(value)
+
+
+def _find_ticket_by_phone(value):
+    variants = list(_phone_variants(value))
+    if not variants:
+        return None
+    conversation = Conversation.query.filter(Conversation.wa_chat_id.in_(variants)).order_by(Conversation.updated_at.desc(), Conversation.id.desc()).first()
+    if conversation:
+        return conversation.ticket
+    return Ticket.query.filter(Ticket.client_phone.in_(variants)).order_by(Ticket.updated_at.desc(), Ticket.id.desc()).first()
+
+
+def _ticket_unread_count(ticket):
+    conversation = ticket.conversation
+    if not conversation:
+        return 0
+    return conversation.messages.filter(Message.direction == "incoming", Message.read_at.is_(None)).count()
+
+
+def _mark_ticket_conversation_read(ticket):
+    conversation = ticket.conversation
+    if not conversation:
+        return 0
+    unread_messages = conversation.messages.filter(Message.direction == "incoming", Message.read_at.is_(None)).order_by(Message.created_at.asc()).all()
+    if not unread_messages:
+        return 0
+    token = current_app.config["WHATSAPP_TOKEN"]
+    version = current_app.config["WHATSAPP_API_VERSION"]
+    phone_number_id = current_app.config["WHATSAPP_PHONE_NUMBER_ID"]
+    marked = 0
+    now = datetime.utcnow()
+    for message in unread_messages:
+        if token and phone_number_id and message.external_id:
+            result = mark_whatsapp_message_read(token, version, phone_number_id, message.external_id)
+            if not result.get("ok"):
+                current_app.logger.warning(
+                    "Failed to mark WhatsApp message as read for ticket=%s message=%s error=%s",
+                    ticket.id,
+                    message.external_id,
+                    result.get("error", "unknown"),
+                )
+        message.read_at = now
+        marked += 1
+    db.session.flush()
+    return marked
 
 
 def _setting_bool(settings_map, key, default=False):
@@ -325,11 +411,12 @@ def api_dashboard():
                     "title": ticket.title,
                     "client_name": ticket.client_name,
                     "client_phone": ticket.client_phone,
+                    "unread_count": _ticket_unread_count(ticket),
                     "company": ticket.company,
                     "service": ticket.service,
                     "description": ticket.description,
                     "due_at": ticket.due_at.isoformat() if ticket.due_at else "",
-                    "closed_at": ticket.closed_at.isoformat() if ticket.closed_at else "",
+                    "closed_at": _utc_iso(ticket.closed_at),
                     "status_id": ticket.status_id,
                     "status_name": ticket.status.name if ticket.status else "",
                     "status_color": ticket.status.color if ticket.status else "#4f46e5",
@@ -337,7 +424,7 @@ def api_dashboard():
                     "department_name": ticket.department.name if ticket.department else "",
                     "labels": [{"id": label.id, "name": label.name, "color": label.color} for label in ticket.labels],
                     "assigned_to": ticket.assigned_to.name if ticket.assigned_to else "",
-                    "created_at": ticket.created_at.isoformat(),
+                    "created_at": _utc_iso(ticket.created_at),
                 }
                 for ticket in tickets
             ],
@@ -364,6 +451,19 @@ def api_create_ticket():
     client_phone = _normalized_phone(payload.get("client_phone") or "")
     if not client_name or not client_phone:
         abort(400, "Cliente e telefone sao obrigatorios.")
+    existing_ticket = _find_ticket_by_phone(client_phone)
+    if existing_ticket:
+        if not existing_ticket.conversation:
+            conversation = Conversation(
+                ticket_id=existing_ticket.id,
+                wa_chat_id=_normalized_phone(payload.get("wa_chat_id") or client_phone),
+                contact_name=client_name or existing_ticket.client_name,
+                last_message_at=datetime.utcnow(),
+            )
+            db.session.add(conversation)
+        db.session.commit()
+        _sync_agenda_sheet_best_effort()
+        return jsonify({"ok": True, "ticket_id": existing_ticket.id, "merged": True})
     ticket = Ticket(
         title=(payload.get("title") or "Novo atendimento").strip(),
         client_name=client_name,
@@ -452,11 +552,12 @@ def api_get_ticket(ticket_id):
                 "title": ticket.title,
                 "client_name": ticket.client_name,
                 "client_phone": ticket.client_phone,
+                "unread_count": _ticket_unread_count(ticket),
                 "company": ticket.company,
                 "service": ticket.service,
                 "description": ticket.description,
                 "due_at": ticket.due_at.isoformat() if ticket.due_at else "",
-                "closed_at": ticket.closed_at.isoformat() if ticket.closed_at else "",
+                "closed_at": _utc_iso(ticket.closed_at),
                 "status_id": ticket.status_id,
                 "assigned_to_id": ticket.assigned_to_id,
                 "department_id": ticket.department_id,
@@ -470,7 +571,7 @@ def api_get_ticket(ticket_id):
             "conversation": {
                 "id": conversation.id if conversation else None,
                 "contact_name": conversation.contact_name if conversation else "",
-                "last_message_at": conversation.last_message_at.isoformat() if conversation and conversation.last_message_at else None,
+                "last_message_at": _utc_iso(conversation.last_message_at) if conversation else None,
                 "messages": [
                     {
                         "id": message.id,
@@ -478,7 +579,7 @@ def api_get_ticket(ticket_id):
                         "sender_name": message.sender_name,
                         "content": message.content,
                         "media_url": message.media_url,
-                        "created_at": message.created_at.isoformat(),
+                        "created_at": _utc_iso(message.created_at),
                     }
                     for message in (conversation.messages.order_by(Message.created_at.asc()).all() if conversation else [])
                 ],
@@ -489,6 +590,15 @@ def api_get_ticket(ticket_id):
             ],
         }
     )
+
+
+@bp.route("/api/tickets/<int:ticket_id>/read", methods=["POST"])
+@login_required
+def api_ticket_read(ticket_id):
+    ticket = db.session.get(Ticket, ticket_id) or abort(404)
+    marked = _mark_ticket_conversation_read(ticket)
+    db.session.commit()
+    return jsonify({"ok": True, "marked": marked, "unread_count": _ticket_unread_count(ticket)})
 
 
 @bp.route("/api/tickets/<int:ticket_id>/labels", methods=["POST"])
@@ -507,12 +617,17 @@ def api_ticket_labels(ticket_id):
 def api_add_message():
     payload = request.get_json(force=True)
     conversation = db.session.get(Conversation, payload.get("conversation_id")) or abort(404)
+    direction = (payload.get("direction", "outgoing") or "outgoing").strip().lower()
+    content = (payload.get("content", "") or "").strip()
+    media_url = (payload.get("media_url", "") or "").strip()
+    if direction == "outgoing":
+        content = _outgoing_message_content(content, media_url)
     message = Message(
         conversation_id=conversation.id,
-        direction=payload.get("direction", "outgoing"),
-        sender_name=payload.get("sender_name", current_user.name),
-        content=payload.get("content", "").strip(),
-        media_url=payload.get("media_url", "").strip(),
+        direction=direction,
+        sender_name=payload.get("sender_name", _sender_label()) if direction != "outgoing" else _sender_label(),
+        content=content,
+        media_url=media_url,
     )
     if not message.content and not message.media_url:
         abort(400, "Mensagem vazia.")
@@ -536,12 +651,13 @@ def api_ticket_message(ticket_id):
     media_url = (payload.get("media_url") or "").strip()
     if not text and not media_url:
         abort(400, "Mensagem vazia.")
+    outgoing_body = _outgoing_message_content(text, media_url)
 
     message = Message(
         conversation_id=conversation.id,
         direction="outgoing",
-        sender_name=current_user.name,
-        content=text or media_url,
+        sender_name=_sender_label(),
+        content=outgoing_body,
         media_url=media_url,
     )
     db.session.add(message)
@@ -554,7 +670,7 @@ def api_ticket_message(ticket_id):
             current_app.config["WHATSAPP_API_VERSION"],
             current_app.config["WHATSAPP_PHONE_NUMBER_ID"],
             to=_normalized_phone(ticket.client_phone),
-            body=text,
+            body=outgoing_body,
         )
     elif text and not ticket.client_phone:
         send_result = {"ok": False, "error": "Telefone do cliente nao cadastrado.", "data": {}}
@@ -977,27 +1093,29 @@ def whatsapp_webhook():
                 contact_name = "WhatsApp"
                 if value.get("contacts"):
                     contact_name = value["contacts"][0].get("profile", {}).get("name", "WhatsApp")
-                conversation = Conversation.query.filter_by(wa_chat_id=wa_chat_id).first()
+                ticket = _find_ticket_by_phone(wa_chat_id)
+                if not ticket:
+                    ticket = Ticket(
+                        title="Contato WhatsApp",
+                        client_name=contact_name,
+                        client_phone=wa_chat_id,
+                        company="",
+                        service="",
+                        description="Recebido por webhook do WhatsApp",
+                        status_id=default_state.id if default_state else WorkflowState.query.first().id,
+                        assigned_to_id=None,
+                        department_id=default_department.id if default_department else None,
+                        closed_at=None,
+                    )
+                    db.session.add(ticket)
+                    db.session.flush()
+                conversation = ticket.conversation
                 if not conversation:
-                    ticket = Ticket.query.filter_by(client_phone=wa_chat_id).first()
-                    if not ticket:
-                        ticket = Ticket(
-                            title="Contato WhatsApp",
-                            client_name=contact_name,
-                            client_phone=wa_chat_id,
-                            company="",
-                            service="",
-                            description="Recebido por webhook do WhatsApp",
-                            status_id=default_state.id if default_state else WorkflowState.query.first().id,
-                            assigned_to_id=None,
-                            department_id=default_department.id if default_department else None,
-                            closed_at=None,
-                        )
-                        db.session.add(ticket)
-                        db.session.flush()
                     conversation = Conversation(ticket_id=ticket.id, wa_chat_id=wa_chat_id, contact_name=contact_name, last_message_at=datetime.utcnow())
                     db.session.add(conversation)
                     db.session.flush()
+                elif wa_chat_id and conversation.wa_chat_id != wa_chat_id:
+                    conversation.wa_chat_id = wa_chat_id
                 if conversation.ticket and conversation.ticket.client_name in {"", "WhatsApp"}:
                     conversation.ticket.client_name = contact_name
                 message = Message(
@@ -1006,6 +1124,7 @@ def whatsapp_webhook():
                     sender_name=contact_name,
                     content=text or "[midia]",
                     media_url="",
+                    external_id=message_data.get("id", ""),
                 )
                 db.session.add(message)
                 conversation.last_message_at = datetime.utcnow()

@@ -18,7 +18,10 @@
   <article class="ticket-card" draggable="true">
     <header>
       <strong data-field="title"></strong>
-      <span class="ticket-id"></span>
+      <div class="ticket-card-head-meta">
+        <span class="ticket-unread-badge" data-field="unread" hidden title="Mensagem nao lida">1</span>
+        <span class="ticket-id"></span>
+      </div>
     </header>
     <p data-field="client_name"></p>
     <p class="muted" data-field="service"></p>
