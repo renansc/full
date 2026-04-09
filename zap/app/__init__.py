@@ -2,10 +2,11 @@ from pathlib import Path
 
 import click
 from dotenv import load_dotenv
-from flask import Flask, current_app
+from flask import Flask, current_app, jsonify, request
 from flask.cli import with_appcontext
 from flask_login import LoginManager
 from sqlalchemy import inspect, text
+from werkzeug.exceptions import HTTPException
 
 from .config import get_config
 from .extensions import db
@@ -29,6 +30,23 @@ def create_app():
     login_manager.init_app(app)
     app.register_blueprint(main_bp)
     app.cli.add_command(init_db_command)
+
+    def _is_api_request():
+        path = request.path or ""
+        return path.startswith("/api/") or "/api/" in path
+
+    @app.errorhandler(HTTPException)
+    def handle_http_exception(error):
+        if _is_api_request():
+            return jsonify({"ok": False, "error": error.description or error.name}), error.code
+        return error
+
+    @app.errorhandler(Exception)
+    def handle_unexpected_exception(error):
+        if _is_api_request():
+            current_app.logger.exception("Unexpected API error")
+            return jsonify({"ok": False, "error": "Erro interno do servidor."}), 500
+        raise error
 
     @login_manager.user_loader
     def load_user(user_id):

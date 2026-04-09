@@ -325,8 +325,26 @@ function csrfJson(url, method, payload) {
     credentials: "same-origin",
     body: JSON.stringify(payload),
   }).then(async (response) => {
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(data.description || data.error || "Falha na requisicao");
+    const raw = await response.text();
+    const contentType = response.headers.get("content-type") || "";
+    let data = {};
+    if (contentType.includes("application/json") || /^[\s\r\n]*[\[{]/.test(raw)) {
+      try {
+        data = JSON.parse(raw || "{}");
+      } catch {
+        data = {};
+      }
+    }
+    if (response.redirected && /\/login(?:[/?#]|$)/i.test(response.url || "")) {
+      throw new Error("Sua sessao expirou. Entre novamente para continuar.");
+    }
+    if (!response.ok) {
+      const message = data.description || data.error || data.message || raw.trim().replace(/<[^>]+>/g, "").trim();
+      if (message) {
+        throw new Error(message);
+      }
+      throw new Error(`Falha na requisicao HTTP ${response.status}`);
+    }
     return data;
   });
 }
