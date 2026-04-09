@@ -1,6 +1,8 @@
 import json
+import mimetypes
 import re
 from datetime import datetime
+from pathlib import Path
 from urllib.parse import urlencode
 
 import requests
@@ -98,6 +100,97 @@ def send_whatsapp_payload(token: str, version: str, phone_number_id: str, payloa
         "status_code": response.status_code,
         "error": _extract_error_message(data, f"WhatsApp retornou HTTP {response.status_code}."),
         "data": data,
+    }
+
+
+def upload_whatsapp_media(token: str, version: str, phone_number_id: str, file_path: str, mime_type: str, filename: str | None = None):
+    if not token or not phone_number_id:
+        return {"ok": False, "error": "Credenciais do WhatsApp nao configuradas."}
+    path = Path(file_path)
+    if not path.exists():
+        return {"ok": False, "error": "Arquivo do anexo nao encontrado."}
+    url = f"{_whatsapp_base(version)}/{phone_number_id}/media"
+    upload_name = filename or path.name
+    guessed_type = mime_type or mimetypes.guess_type(upload_name)[0] or "application/octet-stream"
+    try:
+        with path.open("rb") as handle:
+            response = requests.post(
+                url,
+                data={"messaging_product": "whatsapp", "type": guessed_type},
+                files={"file": (upload_name, handle, guessed_type)},
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=60,
+            )
+    except requests.RequestException as exc:
+        return {"ok": False, "error": str(exc), "data": {}}
+    data = _response_data(response)
+    if response.ok:
+        return {"ok": True, "status_code": response.status_code, "data": data}
+    return {
+        "ok": False,
+        "status_code": response.status_code,
+        "error": _extract_error_message(data, f"WhatsApp retornou HTTP {response.status_code} no upload de midia."),
+        "data": data,
+    }
+
+
+def send_whatsapp_media_by_id(token: str, version: str, phone_number_id: str, to: str, media_type: str, media_id: str, caption: str = "", filename: str = ""):
+    payload = {
+        "messaging_product": "whatsapp",
+        "to": to,
+        "type": media_type,
+        media_type: {"id": media_id},
+    }
+    if caption and media_type in {"image", "video", "document"}:
+        payload[media_type]["caption"] = caption
+    if filename and media_type == "document":
+        payload[media_type]["filename"] = filename
+    return send_whatsapp_payload(token, version, phone_number_id, payload)
+
+
+def download_whatsapp_media(token: str, version: str, media_id: str):
+    if not token:
+        return {"ok": False, "error": "Credenciais do WhatsApp nao configuradas."}
+    metadata_url = f"{_whatsapp_base(version)}/{media_id}"
+    try:
+        metadata_response = requests.get(metadata_url, headers={"Authorization": f"Bearer {token}"}, timeout=30)
+    except requests.RequestException as exc:
+        return {"ok": False, "error": str(exc), "data": {}}
+
+    metadata = _response_data(metadata_response)
+    if not metadata_response.ok:
+        return {
+            "ok": False,
+            "status_code": metadata_response.status_code,
+            "error": _extract_error_message(metadata, f"WhatsApp retornou HTTP {metadata_response.status_code} ao consultar midia."),
+            "data": metadata,
+        }
+
+    media_url = metadata.get("url")
+    if not media_url:
+        return {"ok": False, "error": "WhatsApp nao retornou URL da midia.", "data": metadata}
+
+    try:
+        download_response = requests.get(media_url, headers={"Authorization": f"Bearer {token}"}, timeout=60)
+    except requests.RequestException as exc:
+        return {"ok": False, "error": str(exc), "data": metadata}
+
+    if not download_response.ok:
+        return {
+            "ok": False,
+            "status_code": download_response.status_code,
+            "error": _extract_error_message(_response_data(download_response), f"Falha ao baixar midia HTTP {download_response.status_code}."),
+            "data": metadata,
+        }
+
+    filename = metadata.get("filename") or media_id
+    return {
+        "ok": True,
+        "status_code": download_response.status_code,
+        "data": metadata,
+        "filename": filename,
+        "mime_type": metadata.get("mime_type", ""),
+        "content": download_response.content,
     }
 
 

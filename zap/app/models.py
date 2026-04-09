@@ -77,6 +77,7 @@ class Conversation(TimestampMixin, db.Model):
     wa_chat_id = db.Column(db.String(255), nullable=True, index=True)
     contact_name = db.Column(db.String(140), default="", nullable=False)
     last_message_at = db.Column(db.DateTime, nullable=True)
+    unread_incoming_count = db.Column(db.Integer, default=0, nullable=False)
 
     ticket = db.relationship("Ticket", backref=db.backref("conversation", uselist=False))
 

@@ -1,5 +1,8 @@
-from datetime import datetime, timedelta, timezone
+import mimetypes
 from pathlib import Path
+from urllib.parse import urlparse
+
+from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, abort, current_app, flash, jsonify, redirect, render_template, request, send_from_directory, url_for
 from flask_login import current_user, login_required, login_user, logout_user
@@ -18,8 +21,11 @@ from .services import (
     send_whatsapp_interactive,
     send_whatsapp_location,
     send_whatsapp_media,
+    send_whatsapp_media_by_id,
     send_whatsapp_template,
     send_whatsapp_text,
+    download_whatsapp_media,
+    upload_whatsapp_media,
     sync_tickets_to_sheet,
     whatsapp_phone_variants,
 )
@@ -66,6 +72,41 @@ def _utc_iso(dt):
     return dt.isoformat().replace("+00:00", "Z")
 
 
+def _playable_media_type(filename: str = "", mime_type: str = ""):
+    mime_type = (mime_type or "").lower()
+    filename = (filename or "").lower()
+    if mime_type.startswith("image/") or filename.endswith((".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg")):
+        return "image"
+    if mime_type.startswith("video/") or filename.endswith((".mp4", ".webm", ".mov", ".mkv")):
+        return "video"
+    if mime_type.startswith("audio/") or filename.endswith((".mp3", ".wav", ".ogg", ".m4a", ".aac")):
+        return "audio"
+    return "document"
+
+
+def _uploaded_file_path_from_url(media_url: str):
+    if not media_url:
+        return None
+    parsed = urlparse(media_url)
+    path = parsed.path if parsed.scheme else media_url
+    if not path.startswith("/uploads/"):
+        return None
+    filename = Path(path).name
+    return Path(current_app.instance_path) / "uploads" / filename
+
+
+def _save_whatsapp_media(message_id: str, download_result: dict):
+    upload_dir = Path(current_app.instance_path) / "uploads"
+    upload_dir.mkdir(parents=True, exist_ok=True)
+    filename = download_result.get("filename") or f"whatsapp_{message_id}"
+    safe_name = secure_filename(filename) or f"whatsapp_{message_id}"
+    final_name = f"{message_id}_{safe_name}"
+    file_path = upload_dir / final_name
+    content = download_result.get("content") or b""
+    file_path.write_bytes(content)
+    return url_for("main.uploaded_file", filename=final_name)
+
+
 def _sender_label():
     user_name = (current_user.name or "usuario").strip()
     parts = [f"[{user_name}]"]
@@ -110,7 +151,9 @@ def _ticket_unread_count(ticket):
     conversation = ticket.conversation
     if not conversation:
         return 0
-    return conversation.messages.filter(Message.direction == "incoming", Message.read_at.is_(None)).count()
+    stored = int(conversation.unread_incoming_count or 0)
+    query_count = conversation.messages.filter(Message.direction == "incoming", Message.read_at.is_(None)).count()
+    return max(stored, query_count)
 
 
 def _mark_ticket_conversation_read(ticket):
@@ -137,6 +180,7 @@ def _mark_ticket_conversation_read(ticket):
                 )
         message.read_at = now
         marked += 1
+    conversation.unread_incoming_count = 0
     db.session.flush()
     return marked
 
@@ -652,6 +696,27 @@ def api_ticket_message(ticket_id):
     if not text and not media_url:
         abort(400, "Mensagem vazia.")
     outgoing_body = _outgoing_message_content(text, media_url)
+    attachment_path = _uploaded_file_path_from_url(media_url) if media_url else None
+    attachment_media_type = ""
+    attachment_media_id = ""
+    attachment_filename = ""
+
+    if attachment_path and attachment_path.exists():
+        attachment_filename = attachment_path.name
+        attachment_media_type = _playable_media_type(attachment_filename)
+        upload_result = upload_whatsapp_media(
+            current_app.config["WHATSAPP_TOKEN"],
+            current_app.config["WHATSAPP_API_VERSION"],
+            current_app.config["WHATSAPP_PHONE_NUMBER_ID"],
+            str(attachment_path),
+            mimetypes.guess_type(attachment_filename)[0] or "",
+            attachment_filename,
+        )
+        if not upload_result.get("ok"):
+            return jsonify({"ok": False, "error": upload_result.get("error", "Falha ao enviar anexo."), "whatsapp": upload_result}), 502
+        attachment_media_id = upload_result.get("data", {}).get("id", "")
+        if not attachment_media_id:
+            return jsonify({"ok": False, "error": "WhatsApp nao retornou o id da midia.", "whatsapp": upload_result}), 502
 
     message = Message(
         conversation_id=conversation.id,
@@ -664,7 +729,20 @@ def api_ticket_message(ticket_id):
     conversation.last_message_at = datetime.utcnow()
 
     send_result = {"ok": True, "skipped": True}
-    if text and ticket.client_phone:
+    if attachment_media_id and ticket.client_phone:
+        send_result = send_whatsapp_media_by_id(
+            current_app.config["WHATSAPP_TOKEN"],
+            current_app.config["WHATSAPP_API_VERSION"],
+            current_app.config["WHATSAPP_PHONE_NUMBER_ID"],
+            to=_normalized_phone(ticket.client_phone),
+            media_type=attachment_media_type,
+            media_id=attachment_media_id,
+            caption=outgoing_body if text else "",
+            filename=attachment_filename if attachment_media_type == "document" else "",
+        )
+    elif attachment_path and not ticket.client_phone:
+        send_result = {"ok": False, "error": "Telefone do cliente nao cadastrado.", "data": {}}
+    elif text and ticket.client_phone:
         send_result = send_whatsapp_text(
             current_app.config["WHATSAPP_TOKEN"],
             current_app.config["WHATSAPP_API_VERSION"],
@@ -721,6 +799,8 @@ def api_poll_messages():
     if since:
         try:
             since_dt = datetime.fromisoformat(since.replace("Z", "+00:00"))
+            if since_dt.tzinfo is not None:
+                since_dt = since_dt.astimezone(timezone.utc).replace(tzinfo=None)
             query = Message.query.filter(Message.created_at > since_dt).order_by(Message.created_at.asc())
         except ValueError:
             pass
@@ -1089,6 +1169,7 @@ def whatsapp_webhook():
             for message_data in value.get("messages", []):
                 wa_chat_id = message_data.get("from", "")
                 wa_chat_id = _normalized_phone(wa_chat_id)
+                message_type = (message_data.get("type") or "text").lower()
                 text = message_data.get("text", {}).get("body", "")
                 contact_name = "WhatsApp"
                 if value.get("contacts"):
@@ -1118,17 +1199,43 @@ def whatsapp_webhook():
                     conversation.wa_chat_id = wa_chat_id
                 if conversation.ticket and conversation.ticket.client_name in {"", "WhatsApp"}:
                     conversation.ticket.client_name = contact_name
+                media_url = ""
+                message_content = text
+                if message_type in {"image", "video", "audio", "document"}:
+                    media_payload = message_data.get(message_type, {}) or {}
+                    media_id = media_payload.get("id", "")
+                    caption = (media_payload.get("caption") or "").strip()
+                    filename = (media_payload.get("filename") or "").strip()
+                    message_content = caption or (filename if message_type == "document" else f"[{message_type}]")
+                    if media_id:
+                        media_result = download_whatsapp_media(
+                            current_app.config["WHATSAPP_TOKEN"],
+                            current_app.config["WHATSAPP_API_VERSION"],
+                            media_id,
+                        )
+                        if media_result.get("ok"):
+                            media_url = _save_whatsapp_media(message_data.get("id", media_id), media_result)
+                            if not filename:
+                                filename = media_result.get("filename", "")
+                        else:
+                            current_app.logger.warning(
+                                "Failed to download WhatsApp media message_id=%s media_id=%s error=%s",
+                                message_data.get("id", ""),
+                                media_id,
+                                media_result.get("error", "unknown"),
+                            )
                 message = Message(
                     conversation_id=conversation.id,
                     direction="incoming",
                     sender_name=contact_name,
-                    content=text or "[midia]",
-                    media_url="",
+                    content=message_content or "[midia]",
+                    media_url=media_url,
                     external_id=message_data.get("id", ""),
                 )
                 db.session.add(message)
                 conversation.last_message_at = datetime.utcnow()
                 conversation.contact_name = contact_name
+                conversation.unread_incoming_count = (conversation.unread_incoming_count or 0) + 1
             for status in value.get("statuses", []):
                 message_id = status.get("id")
                 if not message_id:

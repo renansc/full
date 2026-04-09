@@ -6,6 +6,8 @@ const feedbackEl = document.getElementById("client-feedback");
 const whatsappSendLog = document.getElementById("whatsapp-send-log");
 let currentTicketId = null;
 let lastMessagePollAt = new Date().toISOString();
+let notificationAudioContext = null;
+let notificationAudioUnlocked = false;
 let availableLabels = [];
 let availableDepartments = [];
 let availableStates = [];
@@ -43,6 +45,58 @@ function appendWhatsappLog(message, level = "ok") {
   `;
   whatsappSendLog.prepend(entry);
 }
+
+function unlockNotificationSound() {
+  if (notificationAudioUnlocked) return;
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) {
+    notificationAudioUnlocked = true;
+    return;
+  }
+  if (!notificationAudioContext) {
+    notificationAudioContext = new AudioContextClass();
+  }
+  notificationAudioContext.resume?.().catch(() => {});
+  notificationAudioUnlocked = true;
+}
+
+function playNotificationSound() {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!notificationAudioContext && AudioContextClass) {
+    notificationAudioContext = new AudioContextClass();
+  }
+  if (notificationAudioContext) {
+    if (notificationAudioContext.state === "suspended") {
+      notificationAudioContext.resume().catch(() => {});
+    }
+    const ctx = notificationAudioContext;
+    const oscillator = ctx.createOscillator();
+    const gain = ctx.createGain();
+    oscillator.type = "sine";
+    oscillator.frequency.value = 880;
+    gain.gain.value = 0.0001;
+    oscillator.connect(gain);
+    gain.connect(ctx.destination);
+    const now = ctx.currentTime;
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.18, now + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+    oscillator.start(now);
+    oscillator.stop(now + 0.2);
+    oscillator.onended = () => {
+      oscillator.disconnect();
+      gain.disconnect();
+    };
+    return;
+  }
+  if (alertSound) {
+    alertSound.currentTime = 0;
+    alertSound.play().catch(() => {});
+  }
+}
+
+document.addEventListener("pointerdown", unlockNotificationSound, { capture: true, once: false });
+document.addEventListener("keydown", unlockNotificationSound, { capture: true, once: false });
 
 function csrfJson(url, method, payload) {
   return fetch(apiUrl(url), {
@@ -236,10 +290,7 @@ function renderTicket(ticket) {
   });
   card.addEventListener("dragstart", (event) => {
     event.dataTransfer.setData("text/plain", String(ticket.id));
-    if (alertSound) {
-      alertSound.volume = 0.15;
-      alertSound.play().catch(() => {});
-    }
+    playNotificationSound();
   });
   actions.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-move-card]");
@@ -514,7 +565,7 @@ messageForm?.addEventListener("submit", async (event) => {
         `Aceita pela Meta com status ${result.whatsapp?.status_code || "200"} e id ${messageId}`,
         "ok"
       );
-      if (alertSound) alertSound.play().catch(() => {});
+      playNotificationSound();
     }
   } catch (error) {
     if (messageStatus) messageStatus.textContent = `Erro no envio: ${error.message}`;
@@ -587,7 +638,7 @@ setInterval(async () => {
     lastMessagePollAt = data.server_time || new Date().toISOString();
     const incomingMessages = (data.messages || []).filter((message) => message.direction === "incoming");
     if (incomingMessages.length) {
-      if (alertSound) alertSound.play().catch(() => {});
+      playNotificationSound();
       loadReferenceData().catch((error) => console.warn(error));
     }
   } catch (error) {
