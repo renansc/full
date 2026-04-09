@@ -165,6 +165,43 @@ def _phone_variants(value):
     return whatsapp_phone_variants(value)
 
 
+def _recipient_phone_candidates(value):
+    candidates = []
+    seen = set()
+    for candidate in sorted(_phone_variants(value), key=lambda phone: (-len(phone), phone)):
+        if candidate and candidate not in seen:
+            seen.add(candidate)
+            candidates.append(candidate)
+    normalized = _normalized_phone(value)
+    if normalized and normalized not in seen:
+        candidates.insert(0, normalized)
+    return candidates
+
+
+def _send_whatsapp_with_phone_variants(send_callable, phone_value, *args, **kwargs):
+    candidates = _recipient_phone_candidates(phone_value)
+    if not candidates:
+        return {"ok": False, "error": "Telefone de destino obrigatorio.", "data": {}}
+
+    last_result = {"ok": False, "error": "Falha no envio do WhatsApp.", "data": {}}
+    for candidate in candidates:
+        result = send_callable(candidate, *args, **kwargs)
+        current_app.logger.info(
+            "whatsapp_send_attempt phone=%s ok=%s status_code=%s error=%s response=%s",
+            candidate,
+            result.get("ok"),
+            result.get("status_code"),
+            result.get("error", ""),
+            result.get("data", {}),
+        )
+        if result.get("ok"):
+            result.setdefault("recipient", candidate)
+            return result
+        last_result = result
+    last_result["attempted"] = candidates
+    return last_result
+
+
 def _find_ticket_by_phone(value):
     variants = list(_phone_variants(value))
     if not variants:
@@ -748,12 +785,15 @@ def api_ticket_message(ticket_id):
         body = outgoing_body
         if public_media_url:
             body = f"{body}\n{public_media_url}" if body else public_media_url
-        send_result = send_whatsapp_text(
-            current_app.config["WHATSAPP_TOKEN"],
-            current_app.config["WHATSAPP_API_VERSION"],
-            current_app.config["WHATSAPP_PHONE_NUMBER_ID"],
-            to=_normalized_phone(ticket.client_phone),
-            body=body,
+        send_result = _send_whatsapp_with_phone_variants(
+            lambda to: send_whatsapp_text(
+                current_app.config["WHATSAPP_TOKEN"],
+                current_app.config["WHATSAPP_API_VERSION"],
+                current_app.config["WHATSAPP_PHONE_NUMBER_ID"],
+                to=to,
+                body=body,
+            ),
+            ticket.client_phone,
         )
     elif text or media_url:
         send_result = {"ok": False, "error": "Telefone do cliente nao cadastrado.", "data": {}}
@@ -1039,12 +1079,15 @@ def api_run_reminders():
         message = f"Oi, {ticket.client_name}! Lembrando do seu atendimento em {ticket.due_at.strftime('%d/%m/%Y %H:%M')}."
         reminder_status = "sent"
         if send_via_whatsapp and ticket.client_phone:
-            reminder_result = send_whatsapp_text(
-                settings_map.get("WHATSAPP_TOKEN", current_app.config["WHATSAPP_TOKEN"]),
-                settings_map.get("WHATSAPP_API_VERSION", current_app.config["WHATSAPP_API_VERSION"]),
-                settings_map.get("WHATSAPP_PHONE_NUMBER_ID", current_app.config["WHATSAPP_PHONE_NUMBER_ID"]),
-                to=_normalized_phone(ticket.client_phone),
-                body=message,
+            reminder_result = _send_whatsapp_with_phone_variants(
+                lambda to: send_whatsapp_text(
+                    settings_map.get("WHATSAPP_TOKEN", current_app.config["WHATSAPP_TOKEN"]),
+                    settings_map.get("WHATSAPP_API_VERSION", current_app.config["WHATSAPP_API_VERSION"]),
+                    settings_map.get("WHATSAPP_PHONE_NUMBER_ID", current_app.config["WHATSAPP_PHONE_NUMBER_ID"]),
+                    to=to,
+                    body=message,
+                ),
+                ticket.client_phone,
             )
             if not reminder_result.get("ok"):
                 reminder_status = "failed"
@@ -1079,51 +1122,66 @@ def api_whatsapp_send():
         abort(400, "Telefone de destino obrigatorio.")
 
     if message_type == "media":
-        result = send_whatsapp_media(
-            token,
-            version,
-            phone_number_id,
-            to=to,
-            media_type=(payload.get("media_type") or "image").strip(),
-            link=(payload.get("link") or "").strip(),
-            caption=(payload.get("caption") or "").strip(),
+        result = _send_whatsapp_with_phone_variants(
+            lambda recipient: send_whatsapp_media(
+                token,
+                version,
+                phone_number_id,
+                to=recipient,
+                media_type=(payload.get("media_type") or "image").strip(),
+                link=(payload.get("link") or "").strip(),
+                caption=(payload.get("caption") or "").strip(),
+            ),
+            to,
         )
     elif message_type == "template":
-        result = send_whatsapp_template(
-            token,
-            version,
-            phone_number_id,
-            to=to,
-            template_name=(payload.get("template_name") or "").strip(),
-            language_code=(payload.get("language_code") or "pt_BR").strip(),
-            components=payload.get("components") or None,
+        result = _send_whatsapp_with_phone_variants(
+            lambda recipient: send_whatsapp_template(
+                token,
+                version,
+                phone_number_id,
+                to=recipient,
+                template_name=(payload.get("template_name") or "").strip(),
+                language_code=(payload.get("language_code") or "pt_BR").strip(),
+                components=payload.get("components") or None,
+            ),
+            to,
         )
     elif message_type == "interactive":
-        result = send_whatsapp_interactive(
-            token,
-            version,
-            phone_number_id,
-            to=to,
-            interactive=payload.get("interactive") or {},
+        result = _send_whatsapp_with_phone_variants(
+            lambda recipient: send_whatsapp_interactive(
+                token,
+                version,
+                phone_number_id,
+                to=recipient,
+                interactive=payload.get("interactive") or {},
+            ),
+            to,
         )
     elif message_type == "location":
-        result = send_whatsapp_location(
-            token,
-            version,
-            phone_number_id,
-            to=to,
-            latitude=float(payload.get("latitude")),
-            longitude=float(payload.get("longitude")),
-            name=(payload.get("name") or "").strip(),
-            address=(payload.get("address") or "").strip(),
+        result = _send_whatsapp_with_phone_variants(
+            lambda recipient: send_whatsapp_location(
+                token,
+                version,
+                phone_number_id,
+                to=recipient,
+                latitude=float(payload.get("latitude")),
+                longitude=float(payload.get("longitude")),
+                name=(payload.get("name") or "").strip(),
+                address=(payload.get("address") or "").strip(),
+            ),
+            to,
         )
     elif message_type == "contact":
-        result = send_whatsapp_contact(
-            token,
-            version,
-            phone_number_id,
-            to=to,
-            contact=payload.get("contact") or {},
+        result = _send_whatsapp_with_phone_variants(
+            lambda recipient: send_whatsapp_contact(
+                token,
+                version,
+                phone_number_id,
+                to=recipient,
+                contact=payload.get("contact") or {},
+            ),
+            to,
         )
     elif message_type == "read":
         result = mark_whatsapp_message_read(
@@ -1133,12 +1191,15 @@ def api_whatsapp_send():
             message_id=(payload.get("message_id") or "").strip(),
         )
     else:
-        result = send_whatsapp_text(
-            token,
-            version,
-            phone_number_id,
-            to=to,
-            body=(payload.get("body") or "").strip(),
+        result = _send_whatsapp_with_phone_variants(
+            lambda recipient: send_whatsapp_text(
+                token,
+                version,
+                phone_number_id,
+                to=recipient,
+                body=(payload.get("body") or "").strip(),
+            ),
+            to,
         )
     current_app.logger.info(
         "whatsapp_api_send to=%s type=%s ok=%s status_code=%s error=%s response=%s",
