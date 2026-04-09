@@ -13,6 +13,7 @@ from .services import (
     make_google_auth_url,
     mark_whatsapp_message_read,
     preview_sheet_rows,
+    normalize_whatsapp_phone_number,
     send_whatsapp_contact,
     send_whatsapp_interactive,
     send_whatsapp_location,
@@ -48,6 +49,10 @@ def _public_base_url():
 
 def _whatsapp_webhook_url():
     return url_for("main.whatsapp_webhook", _external=True)
+
+
+def _normalized_phone(value):
+    return normalize_whatsapp_phone_number(value)
 
 
 def _setting_bool(settings_map, key, default=False):
@@ -355,7 +360,7 @@ def api_create_ticket():
     if not state:
         abort(400, "Nenhum estado disponivel.")
     client_name = (payload.get("client_name") or "").strip()
-    client_phone = (payload.get("client_phone") or "").strip()
+    client_phone = _normalized_phone(payload.get("client_phone") or "")
     if not client_name or not client_phone:
         abort(400, "Cliente e telefone sao obrigatorios.")
     ticket = Ticket(
@@ -375,7 +380,7 @@ def api_create_ticket():
     db.session.flush()
     conversation = Conversation(
         ticket_id=ticket.id,
-        wa_chat_id=(payload.get("wa_chat_id") or client_phone).strip(),
+        wa_chat_id=_normalized_phone(payload.get("wa_chat_id") or client_phone),
         contact_name=client_name,
         last_message_at=datetime.utcnow(),
     )
@@ -395,7 +400,10 @@ def api_update_ticket(ticket_id):
     payload = request.get_json(force=True)
     for field in ["title", "client_name", "client_phone", "company", "service", "description"]:
         if field in payload:
-            setattr(ticket, field, (payload.get(field) or "").strip())
+            value = (payload.get(field) or "").strip()
+            if field == "client_phone":
+                value = _normalized_phone(value)
+            setattr(ticket, field, value)
     if "due_at" in payload:
         ticket.due_at = _parse_datetime_local(payload.get("due_at"))
     if "status_id" in payload:
@@ -519,7 +527,7 @@ def api_ticket_message(ticket_id):
     ticket = db.session.get(Ticket, ticket_id) or abort(404)
     conversation = ticket.conversation
     if not conversation:
-        conversation = Conversation(ticket_id=ticket.id, wa_chat_id="", contact_name=ticket.client_name, last_message_at=datetime.utcnow())
+        conversation = Conversation(ticket_id=ticket.id, wa_chat_id=ticket.client_phone or "", contact_name=ticket.client_name, last_message_at=datetime.utcnow())
         db.session.add(conversation)
         db.session.flush()
     payload = request.get_json(force=True)
@@ -544,14 +552,18 @@ def api_ticket_message(ticket_id):
             current_app.config["WHATSAPP_TOKEN"],
             current_app.config["WHATSAPP_API_VERSION"],
             current_app.config["WHATSAPP_PHONE_NUMBER_ID"],
-            to=ticket.client_phone,
+            to=_normalized_phone(ticket.client_phone),
             body=text,
         )
+    elif text and not ticket.client_phone:
+        send_result = {"ok": False, "error": "Telefone do cliente nao cadastrado.", "data": {}}
     if send_result.get("ok"):
         messages = send_result.get("data", {}).get("messages", [])
         if isinstance(messages, list) and messages:
             message.external_id = messages[0].get("id")
     db.session.commit()
+    if not send_result.get("ok"):
+        return jsonify({"ok": False, "message_id": message.id, "whatsapp": send_result}), 502
     return jsonify({"ok": True, "message_id": message.id, "whatsapp": send_result})
 
 
@@ -807,14 +819,18 @@ def api_run_reminders():
         if already_sent:
             continue
         message = f"Oi, {ticket.client_name}! Lembrando do seu atendimento em {ticket.due_at.strftime('%d/%m/%Y %H:%M')}."
+        reminder_status = "sent"
         if send_via_whatsapp and ticket.client_phone:
-            send_whatsapp_text(
+            reminder_result = send_whatsapp_text(
                 settings_map.get("WHATSAPP_TOKEN", current_app.config["WHATSAPP_TOKEN"]),
                 settings_map.get("WHATSAPP_API_VERSION", current_app.config["WHATSAPP_API_VERSION"]),
                 settings_map.get("WHATSAPP_PHONE_NUMBER_ID", current_app.config["WHATSAPP_PHONE_NUMBER_ID"]),
-                to=ticket.client_phone,
+                to=_normalized_phone(ticket.client_phone),
                 body=message,
             )
+            if not reminder_result.get("ok"):
+                reminder_status = "failed"
+                current_app.logger.warning("Reminder WhatsApp send failed for ticket %s: %s", ticket.id, reminder_result.get("error", "unknown"))
         db.session.add(
             ReminderLog(
                 ticket_id=ticket.id,
@@ -822,10 +838,11 @@ def api_run_reminders():
                 scheduled_for=target,
                 sent_at=now,
                 channel="whatsapp" if send_via_whatsapp else "internal",
-                status="sent",
+                status=reminder_status,
             )
         )
-        reminders_sent += 1
+        if reminder_status == "sent":
+            reminders_sent += 1
     db.session.commit()
     return jsonify({"ok": True, "reminders_sent": reminders_sent, "reminder_minutes": reminder_minutes})
 
@@ -834,11 +851,14 @@ def api_run_reminders():
 @login_required
 def api_whatsapp_send():
     payload = request.get_json(force=True)
-    to = (payload.get("to") or "").strip()
+    to = _normalized_phone(payload.get("to") or "")
     message_type = (payload.get("type") or "text").strip().lower()
     token = current_app.config["WHATSAPP_TOKEN"]
     version = current_app.config["WHATSAPP_API_VERSION"]
     phone_number_id = current_app.config["WHATSAPP_PHONE_NUMBER_ID"]
+
+    if message_type != "read" and not to:
+        abort(400, "Telefone de destino obrigatorio.")
 
     if message_type == "media":
         result = send_whatsapp_media(
@@ -902,6 +922,8 @@ def api_whatsapp_send():
             to=to,
             body=(payload.get("body") or "").strip(),
         )
+    if not result.get("ok"):
+        return jsonify(result), 502
     return jsonify(result)
 
 
@@ -931,6 +953,7 @@ def whatsapp_webhook():
             value = change.get("value", {})
             for message_data in value.get("messages", []):
                 wa_chat_id = message_data.get("from", "")
+                wa_chat_id = _normalized_phone(wa_chat_id)
                 text = message_data.get("text", {}).get("body", "")
                 contact_name = "WhatsApp"
                 if value.get("contacts"):

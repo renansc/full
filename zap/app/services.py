@@ -1,4 +1,5 @@
 import json
+import re
 from datetime import datetime
 from urllib.parse import urlencode
 
@@ -11,13 +12,61 @@ def _whatsapp_base(version: str) -> str:
     return f"https://graph.facebook.com/{version}"
 
 
+def normalize_whatsapp_phone_number(raw_phone: str, default_country_code: str = "55") -> str:
+    digits = re.sub(r"\D", "", raw_phone or "")
+    if not digits:
+        return ""
+    if digits.startswith("00"):
+        digits = digits[2:]
+    if len(digits) in {10, 11} and not digits.startswith(default_country_code):
+        digits = f"{default_country_code}{digits}"
+    return digits
+
+
+def _response_data(response: requests.Response) -> dict:
+    if not response.content:
+        return {}
+    try:
+        return response.json()
+    except ValueError:
+        return {"raw": response.text}
+
+
+def _extract_error_message(data: dict | None, fallback: str) -> str:
+    if not isinstance(data, dict):
+        return fallback
+    error = data.get("error")
+    if isinstance(error, dict):
+        message = error.get("message")
+        error_data = error.get("error_data")
+        details = error_data.get("details") if isinstance(error_data, dict) else None
+        parts = [part for part in [message, details] if part]
+        if parts:
+            return " - ".join(parts)
+    if error:
+        return str(error)
+    return data.get("message") or fallback
+
+
 def send_whatsapp_payload(token: str, version: str, phone_number_id: str, payload: dict):
     if not token or not phone_number_id:
-        return {"ok": False, "error": "Credenciais do WhatsApp não configuradas."}
+        return {"ok": False, "error": "Credenciais do WhatsApp nao configuradas."}
 
     url = f"{_whatsapp_base(version)}/{phone_number_id}/messages"
-    response = requests.post(url, json=payload, headers={"Authorization": f"Bearer {token}"}, timeout=30)
-    return {"ok": response.ok, "status_code": response.status_code, "data": response.json() if response.content else {}}
+    try:
+        response = requests.post(url, json=payload, headers={"Authorization": f"Bearer {token}"}, timeout=30)
+    except requests.RequestException as exc:
+        return {"ok": False, "error": str(exc), "data": {}}
+
+    data = _response_data(response)
+    if response.ok:
+        return {"ok": True, "status_code": response.status_code, "data": data}
+    return {
+        "ok": False,
+        "status_code": response.status_code,
+        "error": _extract_error_message(data, f"WhatsApp retornou HTTP {response.status_code}."),
+        "data": data,
+    }
 
 
 def send_whatsapp_text(token: str, version: str, phone_number_id: str, to: str, body: str):
@@ -140,11 +189,11 @@ def sheet_rows_from_tickets(tickets):
             "Cliente",
             "Telefone",
             "Empresa",
-            "Serviço",
+            "Servico",
             "Estado",
             "Etiquetas",
             "Vencimento",
-            "Descrição",
+            "Descricao",
             "Atualizado em",
         ]
     ]
@@ -169,9 +218,9 @@ def sheet_rows_from_tickets(tickets):
 def sync_tickets_to_sheet(service_account_json: str, spreadsheet_id: str, sheet_name: str, tickets):
     service = build_sheets_service(service_account_json)
     if not service:
-        return {"ok": False, "error": "Credenciais do Sheets não configuradas."}
+        return {"ok": False, "error": "Credenciais do Sheets nao configuradas."}
     if not spreadsheet_id:
-        return {"ok": False, "error": "Spreadsheet ID não configurado."}
+        return {"ok": False, "error": "Spreadsheet ID nao configurado."}
     sheet_name = sheet_name or "Agenda"
     rows = sheet_rows_from_tickets(tickets)
     range_name = f"{sheet_name}!A1"
@@ -188,9 +237,9 @@ def sync_tickets_to_sheet(service_account_json: str, spreadsheet_id: str, sheet_
 def preview_sheet_rows(service_account_json: str, spreadsheet_id: str, sheet_name: str, limit: int = 20):
     service = build_sheets_service(service_account_json)
     if not service:
-        return {"ok": False, "error": "Credenciais do Sheets não configuradas.", "rows": []}
+        return {"ok": False, "error": "Credenciais do Sheets nao configuradas.", "rows": []}
     if not spreadsheet_id:
-        return {"ok": False, "error": "Spreadsheet ID não configurado.", "rows": []}
+        return {"ok": False, "error": "Spreadsheet ID nao configurado.", "rows": []}
     sheet_name = sheet_name or "Agenda"
     response = service.spreadsheets().values().get(
         spreadsheetId=spreadsheet_id,
