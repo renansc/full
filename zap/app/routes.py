@@ -144,6 +144,10 @@ def _sender_label():
     return " ".join(parts)
 
 
+def _sender_department_name():
+    return (current_user.department.name if current_user.department else "").strip()
+
+
 def _outgoing_message_body(value):
     body = (value or "").strip()
     if not body:
@@ -683,14 +687,15 @@ def api_get_ticket(ticket_id):
                 "contact_name": conversation.contact_name if conversation else "",
                 "last_message_at": _utc_iso(conversation.last_message_at) if conversation else None,
                 "messages": [
-                    {
-                        "id": message.id,
-                        "direction": message.direction,
-                        "sender_name": message.sender_name,
-                        "content": message.content,
-                        "media_url": message.media_url,
-                        "created_at": _utc_iso(message.created_at),
-                    }
+                {
+                    "id": message.id,
+                    "direction": message.direction,
+                    "sender_name": message.sender_name,
+                    "sender_department": message.sender_department,
+                    "content": message.content,
+                    "media_url": message.media_url,
+                    "created_at": _utc_iso(message.created_at),
+                }
                     for message in (conversation.messages.order_by(Message.created_at.asc()).all() if conversation else [])
                 ],
             },
@@ -735,7 +740,8 @@ def api_add_message():
     message = Message(
         conversation_id=conversation.id,
         direction=direction,
-        sender_name=payload.get("sender_name", _sender_label()) if direction != "outgoing" else _sender_label(),
+        sender_name=(payload.get("sender_name") or current_user.name or "usuario").strip() if direction != "outgoing" else (current_user.name or "usuario").strip(),
+        sender_department=(payload.get("sender_department") or "").strip() if direction != "outgoing" else _sender_department_name(),
         content=content,
         media_url=media_url,
     )
@@ -774,7 +780,8 @@ def api_ticket_message(ticket_id):
     message = Message(
         conversation_id=conversation.id,
         direction="outgoing",
-        sender_name=_sender_label(),
+        sender_name=(current_user.name or "usuario").strip(),
+        sender_department=_sender_department_name(),
         content=outgoing_body,
         media_url=public_media_url or media_url,
     )
@@ -867,6 +874,7 @@ def api_poll_messages():
                     "conversation_id": message.conversation_id,
                     "direction": message.direction,
                     "sender_name": message.sender_name,
+                    "sender_department": message.sender_department,
                     "content": message.content,
                     "media_url": message.media_url,
                     "created_at": message.created_at.isoformat() + "Z",
@@ -1302,6 +1310,7 @@ def whatsapp_webhook():
                     conversation_id=conversation.id,
                     direction="incoming",
                     sender_name=contact_name,
+                    sender_department="",
                     content=message_content or "[midia]",
                     media_url=media_url,
                     external_id=message_data.get("id", ""),

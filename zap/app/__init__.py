@@ -150,6 +150,7 @@ def ensure_schema():
     _add_column_if_missing(inspector, "conversation", "contact_name", "contact_name VARCHAR(140) NOT NULL DEFAULT ''")
     _add_column_if_missing(inspector, "conversation", "unread_incoming_count", "unread_incoming_count INTEGER NOT NULL DEFAULT 0")
     _add_column_if_missing(inspector, "message", "external_id", "external_id VARCHAR(255)")
+    _add_column_if_missing(inspector, "message", "sender_department", "sender_department VARCHAR(140) NOT NULL DEFAULT ''")
 
 
 @click.command("init-db")

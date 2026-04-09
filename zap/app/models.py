@@ -88,6 +88,7 @@ class Message(TimestampMixin, db.Model):
     external_id = db.Column(db.String(255), nullable=True, index=True)
     direction = db.Column(db.String(12), nullable=False)
     sender_name = db.Column(db.String(140), nullable=False)
+    sender_department = db.Column(db.String(140), default="", nullable=False)
     content = db.Column(db.Text, nullable=False)
     media_url = db.Column(db.String(500), default="", nullable=False)
     delivered_at = db.Column(db.DateTime, nullable=True)

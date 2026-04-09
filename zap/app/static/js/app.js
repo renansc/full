@@ -319,12 +319,16 @@ document.addEventListener("pointerdown", unlockNotificationSound, { capture: tru
 document.addEventListener("keydown", unlockNotificationSound, { capture: true, once: false });
 
 function csrfJson(url, method, payload) {
-  return fetch(apiUrl(url), {
+  return fetchJson(url, {
     method,
     headers: { "Content-Type": "application/json" },
     credentials: "same-origin",
     body: JSON.stringify(payload),
-  }).then(async (response) => {
+  });
+}
+
+function fetchJson(url, options = {}) {
+  return fetch(apiUrl(url), options).then(async (response) => {
     const raw = await response.text();
     const contentType = response.headers.get("content-type") || "";
     let data = {};
@@ -628,9 +632,8 @@ if (document.getElementById("agenda-preview")) {
 
 async function openTicket(ticketId) {
   currentTicketId = ticketId;
-  const response = await fetch(apiUrl(`/api/tickets/${ticketId}`), { credentials: "same-origin" });
-  const data = await response.json();
-  if (!response.ok) {
+  const data = await fetchJson(`/api/tickets/${ticketId}`, { credentials: "same-origin" });
+  if (!data.ok) {
     showFeedback(data.description || data.error || "Falha ao abrir o card");
     return;
   }
@@ -681,7 +684,10 @@ function renderMessage(message) {
   bubble.className = `message-bubble ${message.direction}`;
   const meta = document.createElement("span");
   meta.className = "meta";
-  meta.textContent = `${message.sender_name} - ${new Date(message.created_at).toLocaleString()}`;
+  const senderLabel = message.sender_department
+    ? `${message.sender_name} [${message.sender_department}]`
+    : String(message.sender_name || "");
+  meta.textContent = `${senderLabel} - ${new Date(message.created_at).toLocaleString()}`;
   bubble.appendChild(meta);
 
   if (message.content) {
@@ -819,7 +825,7 @@ messageForm?.addEventListener("submit", async (event) => {
     if (result.ok) {
       messageForm.reset();
       updateQuickReplySuggestions();
-      await openTicket(currentTicketId);
+      openTicket(currentTicketId).catch((error) => console.warn("Nao foi possivel recarregar o card apos o envio.", error));
       const messageId = result.whatsapp?.data?.messages?.[0]?.id || result.message_id || "sem id";
       if (messageStatus) messageStatus.textContent = `Aceita pela Meta. ID: ${messageId}`;
       appendWhatsappLog(
