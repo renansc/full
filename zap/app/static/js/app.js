@@ -622,7 +622,7 @@ fileUpload?.addEventListener("change", async () => {
     const data = await response.json();
     if (!response.ok) throw new Error(data.description || data.error || "Falha no upload");
     if (messageForm) {
-      messageForm.media_url.value = data.url;
+      messageForm.media_url.value = data.public_url || data.url;
       showFeedback("Arquivo anexado com sucesso.", "success");
     }
   } catch (error) {

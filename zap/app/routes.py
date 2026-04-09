@@ -21,11 +21,9 @@ from .services import (
     send_whatsapp_interactive,
     send_whatsapp_location,
     send_whatsapp_media,
-    send_whatsapp_media_by_id,
     send_whatsapp_template,
     send_whatsapp_text,
     download_whatsapp_media,
-    upload_whatsapp_media,
     sync_tickets_to_sheet,
     whatsapp_phone_variants,
 )
@@ -105,6 +103,17 @@ def _save_whatsapp_media(message_id: str, download_result: dict):
     content = download_result.get("content") or b""
     file_path.write_bytes(content)
     return url_for("main.uploaded_file", filename=final_name)
+
+
+def _public_uploaded_file_url(filename: str):
+    filename = secure_filename(filename or "")
+    if not filename:
+        return ""
+    path = url_for("main.public_uploaded_file", filename=filename)
+    base_url = _public_base_url()
+    if base_url:
+        return f"{base_url}{path}"
+    return url_for("main.public_uploaded_file", filename=filename, _external=True)
 
 
 def _sender_label():
@@ -696,85 +705,38 @@ def api_ticket_message(ticket_id):
     if not text and not media_url:
         abort(400, "Mensagem vazia.")
     outgoing_body = _outgoing_message_content(text, media_url)
-    attachment_path = _uploaded_file_path_from_url(media_url) if media_url else None
-    attachment_media_type = ""
-    attachment_media_id = ""
     attachment_filename = ""
-
-    if attachment_path and attachment_path.exists():
-        attachment_filename = attachment_path.name
-        attachment_media_type = _playable_media_type(attachment_filename)
-        current_app.logger.info(
-            "whatsapp_attachment_upload ticket_id=%s path=%s mime=%s media_type=%s",
-            ticket.id,
-            attachment_path,
-            mimetypes.guess_type(attachment_filename)[0] or "",
-            attachment_media_type,
-        )
-        upload_result = upload_whatsapp_media(
-            current_app.config["WHATSAPP_TOKEN"],
-            current_app.config["WHATSAPP_API_VERSION"],
-            current_app.config["WHATSAPP_PHONE_NUMBER_ID"],
-            str(attachment_path),
-            mimetypes.guess_type(attachment_filename)[0] or "",
-            attachment_filename,
-        )
-        if not upload_result.get("ok"):
-            return jsonify({"ok": False, "error": upload_result.get("error", "Falha ao enviar anexo."), "whatsapp": upload_result}), 502
-        attachment_media_id = upload_result.get("data", {}).get("id", "")
-        if not attachment_media_id:
-            return jsonify({"ok": False, "error": "WhatsApp nao retornou o id da midia.", "whatsapp": upload_result}), 502
-        current_app.logger.info(
-            "whatsapp_attachment_uploaded ticket_id=%s media_id=%s status_code=%s response=%s",
-            ticket.id,
-            attachment_media_id,
-            upload_result.get("status_code"),
-            upload_result.get("data", {}),
-        )
+    public_media_url = ""
+    if media_url:
+        attachment_filename = Path(urlparse(media_url).path).name or Path(media_url).name
+        public_media_url = _public_uploaded_file_url(attachment_filename) or media_url
+    attachment_path = _uploaded_file_path_from_url(media_url) if media_url else None
+    if attachment_path and attachment_path.exists() and not public_media_url:
+        public_media_url = _public_uploaded_file_url(attachment_path.name)
 
     message = Message(
         conversation_id=conversation.id,
         direction="outgoing",
         sender_name=_sender_label(),
         content=outgoing_body,
-        media_url=media_url,
+        media_url=public_media_url or media_url,
     )
     db.session.add(message)
     conversation.last_message_at = datetime.utcnow()
 
     send_result = {"ok": True, "skipped": True}
-    if attachment_media_id and ticket.client_phone:
-        send_result = send_whatsapp_media_by_id(
-            current_app.config["WHATSAPP_TOKEN"],
-            current_app.config["WHATSAPP_API_VERSION"],
-            current_app.config["WHATSAPP_PHONE_NUMBER_ID"],
-            to=_normalized_phone(ticket.client_phone),
-            media_type=attachment_media_type,
-            media_id=attachment_media_id,
-            caption=outgoing_body if text else "",
-            filename=attachment_filename if attachment_media_type == "document" else "",
-        )
-        current_app.logger.info(
-            "whatsapp_attachment_sent ticket_id=%s phone=%s media_id=%s ok=%s status_code=%s error=%s response=%s",
-            ticket.id,
-            ticket.client_phone,
-            attachment_media_id,
-            send_result.get("ok"),
-            send_result.get("status_code"),
-            send_result.get("error", ""),
-            send_result.get("data", {}),
-        )
-    elif attachment_path and not ticket.client_phone:
-        send_result = {"ok": False, "error": "Telefone do cliente nao cadastrado.", "data": {}}
-    elif text and ticket.client_phone:
+    if ticket.client_phone:
+        body = outgoing_body
+        if public_media_url:
+            body = f"{body}\n{public_media_url}" if body else public_media_url
         send_result = send_whatsapp_text(
             current_app.config["WHATSAPP_TOKEN"],
             current_app.config["WHATSAPP_API_VERSION"],
             current_app.config["WHATSAPP_PHONE_NUMBER_ID"],
             to=_normalized_phone(ticket.client_phone),
-            body=outgoing_body,
+            body=body,
         )
-    elif text and not ticket.client_phone:
+    elif text or media_url:
         send_result = {"ok": False, "error": "Telefone do cliente nao cadastrado.", "data": {}}
     if send_result.get("ok"):
         messages = send_result.get("data", {}).get("messages", [])
@@ -805,12 +767,19 @@ def api_upload():
     upload_dir = Path(current_app.instance_path) / "uploads"
     upload_dir.mkdir(parents=True, exist_ok=True)
     file.save(str(upload_dir / filename))
-    return jsonify({"ok": True, "url": url_for("main.uploaded_file", filename=filename)})
+    public_url = _public_uploaded_file_url(filename)
+    return jsonify({"ok": True, "url": public_url or url_for("main.uploaded_file", filename=filename), "private_url": url_for("main.uploaded_file", filename=filename)})
 
 
 @bp.route("/uploads/<path:filename>")
 @login_required
 def uploaded_file(filename):
+    upload_dir = Path(current_app.instance_path) / "uploads"
+    return send_from_directory(upload_dir, filename)
+
+
+@bp.route("/public/uploads/<path:filename>")
+def public_uploaded_file(filename):
     upload_dir = Path(current_app.instance_path) / "uploads"
     return send_from_directory(upload_dir, filename)
 
