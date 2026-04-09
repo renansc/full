@@ -704,6 +704,13 @@ def api_ticket_message(ticket_id):
     if attachment_path and attachment_path.exists():
         attachment_filename = attachment_path.name
         attachment_media_type = _playable_media_type(attachment_filename)
+        current_app.logger.info(
+            "whatsapp_attachment_upload ticket_id=%s path=%s mime=%s media_type=%s",
+            ticket.id,
+            attachment_path,
+            mimetypes.guess_type(attachment_filename)[0] or "",
+            attachment_media_type,
+        )
         upload_result = upload_whatsapp_media(
             current_app.config["WHATSAPP_TOKEN"],
             current_app.config["WHATSAPP_API_VERSION"],
@@ -717,6 +724,13 @@ def api_ticket_message(ticket_id):
         attachment_media_id = upload_result.get("data", {}).get("id", "")
         if not attachment_media_id:
             return jsonify({"ok": False, "error": "WhatsApp nao retornou o id da midia.", "whatsapp": upload_result}), 502
+        current_app.logger.info(
+            "whatsapp_attachment_uploaded ticket_id=%s media_id=%s status_code=%s response=%s",
+            ticket.id,
+            attachment_media_id,
+            upload_result.get("status_code"),
+            upload_result.get("data", {}),
+        )
 
     message = Message(
         conversation_id=conversation.id,
@@ -740,6 +754,16 @@ def api_ticket_message(ticket_id):
             caption=outgoing_body if text else "",
             filename=attachment_filename if attachment_media_type == "document" else "",
         )
+        current_app.logger.info(
+            "whatsapp_attachment_sent ticket_id=%s phone=%s media_id=%s ok=%s status_code=%s error=%s response=%s",
+            ticket.id,
+            ticket.client_phone,
+            attachment_media_id,
+            send_result.get("ok"),
+            send_result.get("status_code"),
+            send_result.get("error", ""),
+            send_result.get("data", {}),
+        )
     elif attachment_path and not ticket.client_phone:
         send_result = {"ok": False, "error": "Telefone do cliente nao cadastrado.", "data": {}}
     elif text and ticket.client_phone:
@@ -759,13 +783,13 @@ def api_ticket_message(ticket_id):
     db.session.commit()
     current_app.logger.info(
         "whatsapp_send ticket_id=%s phone=%s ok=%s status_code=%s error=%s response=%s",
-        ticket.id,
-        ticket.client_phone,
-        send_result.get("ok"),
-        send_result.get("status_code"),
-        send_result.get("error", ""),
-        send_result.get("data", {}),
-    )
+            ticket.id,
+            ticket.client_phone,
+            send_result.get("ok"),
+            send_result.get("status_code"),
+            send_result.get("error", ""),
+            send_result.get("data", {}),
+        )
     if not send_result.get("ok"):
         return jsonify({"ok": False, "error": send_result.get("error", "Falha no envio do WhatsApp."), "message_id": message.id, "whatsapp": send_result}), 502
     return jsonify({"ok": True, "message_id": message.id, "whatsapp": send_result})
@@ -1245,6 +1269,8 @@ def whatsapp_webhook():
                     continue
                 status_name = status.get("status", "")
                 timestamp = datetime.utcnow()
+                if status_name:
+                    message.status = status_name
                 if status_name == "delivered":
                     message.delivered_at = timestamp
                 elif status_name == "read":

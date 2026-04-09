@@ -40,6 +40,8 @@ sidebarToggle?.addEventListener("click", () => {
 function apiUrl(path) {
   if (/^https?:\/\//i.test(path)) return path;
   const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  if (apiBase && normalizedPath.startsWith(`${apiBase}/`)) return normalizedPath;
+  if (apiBase && normalizedPath === apiBase) return normalizedPath;
   return `${apiBase}${normalizedPath}`;
 }
 
