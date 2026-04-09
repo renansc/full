@@ -11,6 +11,7 @@ let notificationAudioUnlocked = false;
 let availableLabels = [];
 let availableDepartments = [];
 let availableStates = [];
+let quickReplyShortcutMap = new Map();
 const sidebarToggle = document.querySelector("[data-sidebar-toggle]");
 const sidebarStorageKey = "zap.sidebar.collapsed";
 
@@ -56,6 +57,86 @@ function showFeedback(message, type = "error") {
   feedbackTimer = window.setTimeout(() => {
     feedbackEl.innerHTML = "";
   }, type === "error" ? 7000 : 4000);
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function refreshQuickReplyShortcuts() {
+  quickReplyShortcutMap = new Map(
+    Array.from(document.querySelectorAll(".quick-reply")).flatMap((button) => {
+      const shortcut = String(button.dataset.shortcut || "").trim().toLowerCase();
+      const body = String(button.dataset.body || "").trim();
+      return shortcut && body ? [[shortcut, body]] : [];
+    })
+  );
+}
+
+function getMessageTextarea() {
+  return messageForm?.querySelector('textarea[name="content"]') || null;
+}
+
+function insertTextAtCursor(textarea, text) {
+  if (!textarea) return;
+  const currentValue = textarea.value;
+  const start = textarea.selectionStart ?? currentValue.length;
+  const end = textarea.selectionEnd ?? currentValue.length;
+  const nextValue = `${currentValue.slice(0, start)}${text}${currentValue.slice(end)}`;
+  textarea.value = nextValue;
+  const cursor = start + text.length;
+  textarea.setSelectionRange(cursor, cursor);
+  textarea.focus();
+}
+
+function replaceShortcutToken(textarea, shortcut, replacement, trailing = " ") {
+  if (!textarea || !shortcut || !replacement) return false;
+  const value = textarea.value;
+  const caret = textarea.selectionStart ?? value.length;
+  const before = value.slice(0, caret);
+  const after = value.slice(caret);
+  const pattern = new RegExp(`(^|\\s)(${escapeRegExp(shortcut)})$`, "i");
+  const match = before.match(pattern);
+  if (!match) return false;
+  const prefix = match[1] || "";
+  const start = before.length - match[2].length;
+  const nextBefore = `${before.slice(0, start)}${replacement}${trailing}`;
+  textarea.value = `${nextBefore}${after}`;
+  const cursor = nextBefore.length;
+  textarea.setSelectionRange(cursor, cursor);
+  return true;
+}
+
+function expandQuickReplyDraft(text) {
+  let draft = String(text || "");
+  quickReplyShortcutMap.forEach((body, shortcut) => {
+    const escapedShortcut = escapeRegExp(shortcut);
+    const pattern = new RegExp(`(^|\\s)(${escapedShortcut})(?=\\s|$)`, "gi");
+    draft = draft.replace(pattern, (match, prefix, token) => `${prefix}${body}`);
+  });
+  return draft;
+}
+
+function insertQuickReply(body) {
+  const textarea = getMessageTextarea();
+  if (!textarea) return;
+  insertTextAtCursor(textarea, body);
+  textarea.dispatchEvent(new Event("input", { bubbles: true }));
+}
+
+function expandActiveQuickReply(triggerKey = "") {
+  const textarea = getMessageTextarea();
+  if (!textarea) return false;
+  const value = textarea.value;
+  const caret = textarea.selectionStart ?? value.length;
+  const before = value.slice(0, caret);
+  const tokenMatch = before.match(/(?:^|\s)(\/[^\s]+)$/i);
+  if (!tokenMatch) return false;
+  const token = tokenMatch[1].toLowerCase();
+  const body = quickReplyShortcutMap.get(token);
+  if (!body) return false;
+  const trailing = triggerKey === "Tab" ? " " : "";
+  return replaceShortcutToken(textarea, token, body, trailing);
 }
 
 function appendWhatsappLog(message, level = "ok") {
@@ -164,17 +245,21 @@ document.addEventListener("click", (event) => {
 
   const quickReply = event.target.closest(".quick-reply");
   if (quickReply) {
-    navigator.clipboard?.writeText(quickReply.dataset.body || "");
-    const original = quickReply.textContent;
-    quickReply.textContent = "Copiado";
-    setTimeout(() => {
-      quickReply.textContent = original;
-    }, 900);
+    insertQuickReply(quickReply.dataset.body || "");
+    const modal = quickReply.closest(".modal");
+    if (modal) closeModal(modal);
+    showFeedback("Atalho inserido na mensagem.", "success");
   }
 });
 
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape") document.querySelectorAll(".modal.open").forEach(closeModal);
+  if ((event.key === "Tab" || (event.ctrlKey && event.key === " ")) && document.activeElement === getMessageTextarea()) {
+    if (expandActiveQuickReply(event.key)) {
+      event.preventDefault();
+      showFeedback("Atalho expandido na mensagem.", "success");
+    }
+  }
 });
 
 async function loadReferenceData() {
@@ -186,6 +271,7 @@ async function loadReferenceData() {
   availableStates = data.states || [];
   availableLabels = data.labels || [];
   availableDepartments = data.departments || [];
+  refreshQuickReplyShortcuts();
   renderLabelPicker(document.getElementById("ticket-label-picker"), availableLabels, []);
   populateDepartmentSelects(availableDepartments);
   if (boardEl) renderBoard(data.states || [], data.tickets || []);
@@ -574,6 +660,10 @@ messageForm?.addEventListener("submit", async (event) => {
   const submitBtn = messageForm.querySelector('button[type="submit"]');
   const messageStatus = document.getElementById("message-status");
   const recipient = messageForm.querySelector('input[name="client_phone"]')?.value || "";
+  const contentField = messageForm.querySelector('textarea[name="content"]');
+  if (contentField) {
+    contentField.value = expandQuickReplyDraft(contentField.value);
+  }
   try {
     if (submitBtn) {
       submitBtn.disabled = true;

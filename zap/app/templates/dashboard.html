@@ -118,7 +118,10 @@
     </div>
     <div class="quick-grid">
       {% for reply in quick_replies %}
-      <button class="quick-reply" data-body="{{ reply.body|e }}">{{ reply.title }}</button>
+      <button class="quick-reply" type="button" data-shortcut="{{ reply.shortcut|e }}" data-body="{{ reply.body|e }}" title="Inserir {{ reply.shortcut }}">
+        <strong>{{ reply.shortcut }}</strong>
+        <span>{{ reply.title }}</span>
+      </button>
       {% endfor %}
     </div>
   </div>
