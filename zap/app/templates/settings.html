@@ -100,14 +100,23 @@
   <article class="panel">
     <h2>Backup AlwaysData</h2>
     <form id="backup-settings-form" class="stack-form">
-      <input name="BACKUP_DATABASE_URL" placeholder="mysql+pymysql://usuario:senha@host:3306/banco" value="{{ backup_database_url }}">
+      <input name="BACKUP_DATABASE_URL" placeholder="mysql+pymysql://usuario:senha@host:3306/banco" value="{{ settings_map.get('BACKUP_DATABASE_URL', '') }}">
+      <div class="settings-grid compact-grid">
+        <input name="BACKUP_DB_DRIVER" placeholder="Driver" value="{{ settings_map.get('BACKUP_DB_DRIVER', 'mysql+pymysql') }}">
+        <input name="BACKUP_DB_HOST" placeholder="Host" value="{{ settings_map.get('BACKUP_DB_HOST', '') }}">
+        <input name="BACKUP_DB_PORT" placeholder="Porta" value="{{ settings_map.get('BACKUP_DB_PORT', '3306') }}">
+        <input name="BACKUP_DB_NAME" placeholder="Banco" value="{{ settings_map.get('BACKUP_DB_NAME', '') }}">
+        <input name="BACKUP_DB_USER" placeholder="Usuario" value="{{ settings_map.get('BACKUP_DB_USER', '') }}">
+        <input name="BACKUP_DB_PASSWORD" type="password" placeholder="Senha" value="{{ settings_map.get('BACKUP_DB_PASSWORD', '') }}">
+      </div>
+      <input name="BACKUP_DB_QUERY" placeholder="Query extra (ex: charset=utf8mb4)" value="{{ settings_map.get('BACKUP_DB_QUERY', 'charset=utf8mb4') }}">
       <div class="button-row">
         <button class="primary-btn" type="submit">Salvar backup</button>
         <button class="secondary-btn" type="button" data-backup-action="push">Enviar backup agora</button>
         <button class="secondary-btn" type="button" data-backup-action="pull">Puxar backup agora</button>
       </div>
     </form>
-    <p class="muted">O banco local continua sendo o principal. Os botoes copiam os dados manualmente entre o SQLite local e o AlwaysData quando voce pedir. Se a senha tiver caracteres especiais, o sistema agora tenta interpretar a URL corretamente.</p>
+    <p class="muted">O banco local continua sendo o principal. Você pode preencher a URL completa ou os campos separados. Se a senha tiver caracteres especiais, use os campos separados para evitar problemas de parser.</p>
   </article>
   {% endif %}
 

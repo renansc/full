@@ -1064,16 +1064,22 @@ function bindBackupControls() {
   const form = document.getElementById("backup-settings-form");
   if (!form) return;
 
-  function readBackupUrl() {
+  function readBackupSettings() {
     const payload = serializeForm(form);
-    return String(payload.BACKUP_DATABASE_URL || "").trim();
+    const settings = {};
+    Object.entries(payload).forEach(([key, value]) => {
+      if (key.startsWith("BACKUP_")) {
+        settings[key] = String(value || "").trim();
+      }
+    });
+    return settings;
   }
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
-      await csrfJson("/api/settings/bulk", "POST", { settings: { BACKUP_DATABASE_URL: readBackupUrl() } });
-      showFeedback("URL do backup salva com sucesso.", "success");
+      await csrfJson("/api/settings/bulk", "POST", { settings: readBackupSettings() });
+      showFeedback("Configuracao do backup salva com sucesso.", "success");
       location.reload();
     } catch (error) {
       showFeedback(error.message);
@@ -1084,10 +1090,9 @@ function bindBackupControls() {
     button.addEventListener("click", async () => {
       const action = button.dataset.backupAction || "push";
       try {
-        const backupUrl = readBackupUrl();
         const endpoint = action === "pull" ? "/api/database/backup/pull" : "/api/database/backup/push";
-        const payload = backupUrl ? { backup_url: backupUrl } : {};
-        const result = await csrfJson(endpoint, "POST", payload);
+        const backupSettings = readBackupSettings();
+        const result = await csrfJson(endpoint, "POST", { backup_settings: backupSettings });
         const rowsCopied = result?.backup?.rows_copied ?? result?.rows_copied ?? 0;
         const tablesCopied = result?.backup?.tables_copied ?? result?.tables_copied ?? 0;
         const prefix = action === "pull" ? "Backup puxado com sucesso." : "Backup enviado com sucesso.";

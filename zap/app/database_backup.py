@@ -15,6 +15,8 @@ def _toggle_foreign_keys(connection, enabled: bool):
 
 
 def _engine_from_url(raw_url: str):
+    if isinstance(raw_url, URL):
+        return create_engine(raw_url, pool_pre_ping=True)
     raw_url = (raw_url or "").strip()
     try:
         return create_engine(raw_url, pool_pre_ping=True)
@@ -37,6 +39,39 @@ def _engine_from_url(raw_url: str):
             query=query,
         )
         return create_engine(url, pool_pre_ping=True)
+
+
+def build_backup_database_url(settings_map=None, overrides=None, fallback_url=""):
+    settings_map = settings_map or {}
+    overrides = overrides or {}
+    values = {**settings_map, **overrides}
+
+    raw_url = (values.get("BACKUP_DATABASE_URL") or "").strip()
+    driver = (values.get("BACKUP_DB_DRIVER") or "").strip() or "mysql+pymysql"
+    host = (values.get("BACKUP_DB_HOST") or "").strip()
+    port = (values.get("BACKUP_DB_PORT") or "").strip()
+    database = (values.get("BACKUP_DB_NAME") or "").strip()
+    username = (values.get("BACKUP_DB_USER") or "").strip()
+    password = values.get("BACKUP_DB_PASSWORD")
+    query_string = (values.get("BACKUP_DB_QUERY") or "").strip()
+
+    has_components = any([host, port, database, username, password, query_string])
+    if has_components:
+        query = dict(parse_qsl(query_string, keep_blank_values=True))
+        port_value = int(port) if str(port).isdigit() else None
+        if not (host and database and username):
+            return raw_url
+        return URL.create(
+            drivername=driver,
+            username=username,
+            password=password or "",
+            host=host,
+            port=port_value,
+            database=database,
+            query=query,
+        )
+
+    return raw_url or (fallback_url or "").strip()
 
 
 def copy_database_contents(source_url: str, target_url: str):

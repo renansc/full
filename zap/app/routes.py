@@ -9,7 +9,7 @@ from flask_login import current_user, login_required, login_user, logout_user
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
-from .database_backup import copy_database_contents
+from .database_backup import build_backup_database_url, copy_database_contents
 from .extensions import db
 from .models import Conversation, Department, Label, Message, QuickReply, ReminderLog, Setting, Ticket, User, WorkflowState
 from .services import (
@@ -359,7 +359,7 @@ def _integration_status(settings_map=None):
     backend = (database_uri.split(":", 1)[0] if ":" in database_uri else database_uri).split("+", 1)[0]
     database_is_sqlite = backend.startswith("sqlite")
     whatsapp = _whatsapp_runtime_settings(settings_map)
-    backup_database_url = _runtime_setting("BACKUP_DATABASE_URL", current_app.config.get("BACKUP_DATABASE_URL", ""), settings_map)
+    backup_database_url = build_backup_database_url(settings_map, fallback_url=current_app.config.get("BACKUP_DATABASE_URL", ""))
     whatsapp_ready = bool(whatsapp["token"] and whatsapp["phone_number_id"])
     google_ready = bool(settings_map.get("GOOGLE_SERVICE_ACCOUNT_JSON") and settings_map.get("GOOGLE_SHEETS_SPREADSHEET_ID"))
     reminders_ready = _setting_bool(settings_map, "REMINDER_SEND_WHATSAPP", True) and bool(settings_map.get("REMINDER_MINUTES"))
@@ -490,7 +490,7 @@ def settings():
     quick_replies = QuickReply.query.order_by(QuickReply.title.asc()).all()
     settings_rows = Setting.query.order_by(Setting.key.asc()).all()
     departments = Department.query.order_by(Department.name.asc()).all()
-    backup_database_url = _runtime_setting("BACKUP_DATABASE_URL", current_app.config.get("BACKUP_DATABASE_URL", ""), settings_map)
+    backup_database_url = build_backup_database_url(settings_map, fallback_url=current_app.config.get("BACKUP_DATABASE_URL", ""))
     users = [
         {
             "id": user.id,
@@ -983,9 +983,12 @@ def api_database_backup_push():
     try:
         _require_admin()
         payload = request.get_json(force=True, silent=True) or {}
-        backup_url = (payload.get("backup_url") or "").strip()
-        if not backup_url:
-            backup_url = _runtime_setting("BACKUP_DATABASE_URL", current_app.config.get("BACKUP_DATABASE_URL", ""))
+        backup_settings = payload.get("backup_settings") if isinstance(payload.get("backup_settings"), dict) else {}
+        backup_url = build_backup_database_url(
+            _settings_map(),
+            backup_settings,
+            fallback_url=current_app.config.get("BACKUP_DATABASE_URL", ""),
+        )
         if not backup_url:
             abort(400, "Defina BACKUP_DATABASE_URL antes de enviar o backup.")
         source_url = db.engine.url.render_as_string(hide_password=False)
@@ -1013,9 +1016,12 @@ def api_database_backup_pull():
     try:
         _require_admin()
         payload = request.get_json(force=True, silent=True) or {}
-        backup_url = (payload.get("backup_url") or "").strip()
-        if not backup_url:
-            backup_url = _runtime_setting("BACKUP_DATABASE_URL", current_app.config.get("BACKUP_DATABASE_URL", ""))
+        backup_settings = payload.get("backup_settings") if isinstance(payload.get("backup_settings"), dict) else {}
+        backup_url = build_backup_database_url(
+            _settings_map(),
+            backup_settings,
+            fallback_url=current_app.config.get("BACKUP_DATABASE_URL", ""),
+        )
         if not backup_url:
             abort(400, "Defina BACKUP_DATABASE_URL antes de puxar o backup.")
         source_url = backup_url
