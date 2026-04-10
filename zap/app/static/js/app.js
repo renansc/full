@@ -615,6 +615,7 @@ bindSimpleForm("department-form", "/api/config/departments");
 bindSimpleForm("label-form", "/api/config/labels");
 bindSimpleForm("quick-reply-form", "/api/config/quick-replies");
 bindSettingsForm("whatsapp-settings-form");
+bindBackupControls();
 bindSettingsForm("agenda-settings-form");
 bindSettingsForm("reminder-settings-form");
 bindSettingsForm("integration-settings-form");
@@ -1056,6 +1057,47 @@ function bindSettingsForm(formId) {
     } catch (error) {
       showFeedback(error.message);
     }
+  });
+}
+
+function bindBackupControls() {
+  const form = document.getElementById("backup-settings-form");
+  if (!form) return;
+
+  async function saveBackupUrl(allowEmpty = true) {
+    const payload = serializeForm(form);
+    const backupUrl = String(payload.BACKUP_DATABASE_URL || "").trim();
+    if (!allowEmpty && !backupUrl) {
+      throw new Error("Defina a URL do backup antes de executar a acao.");
+    }
+    await csrfJson("/api/settings/bulk", "POST", { settings: { BACKUP_DATABASE_URL: backupUrl } });
+    return backupUrl;
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try {
+      await saveBackupUrl(true);
+      showFeedback("URL do backup salva com sucesso.", "success");
+      location.reload();
+    } catch (error) {
+      showFeedback(error.message);
+    }
+  });
+
+  form.querySelectorAll("[data-backup-action]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const action = button.dataset.backupAction || "push";
+      try {
+        const backupUrl = await saveBackupUrl(false);
+        const endpoint = action === "pull" ? "/api/database/backup/pull" : "/api/database/backup/push";
+        await csrfJson(endpoint, "POST", { backup_url: backupUrl });
+        showFeedback(action === "pull" ? "Backup puxado com sucesso." : "Backup enviado com sucesso.", "success");
+        location.reload();
+      } catch (error) {
+        showFeedback(error.message);
+      }
+    });
   });
 }
 

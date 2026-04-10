@@ -96,6 +96,21 @@
     <p class="muted">Se a conversa ainda nao passou pela janela de 24 horas, a Meta normalmente exige um template aprovado para iniciar o contato. Se o app estiver em modo de desenvolvimento, confirme tambem se o numero do destinatario esta liberado para teste no app da Meta.</p>
   </article>
 
+  {% if is_admin %}
+  <article class="panel">
+    <h2>Backup AlwaysData</h2>
+    <form id="backup-settings-form" class="stack-form">
+      <input name="BACKUP_DATABASE_URL" placeholder="mysql+pymysql://usuario:senha@host:3306/banco" value="{{ backup_database_url }}">
+      <div class="button-row">
+        <button class="primary-btn" type="submit">Salvar backup</button>
+        <button class="secondary-btn" type="button" data-backup-action="push">Enviar backup agora</button>
+        <button class="secondary-btn" type="button" data-backup-action="pull">Puxar backup agora</button>
+      </div>
+    </form>
+    <p class="muted">O banco local continua sendo o principal. Os botoes copiam os dados manualmente entre o SQLite local e o AlwaysData quando voce pedir.</p>
+  </article>
+  {% endif %}
+
   <article class="panel">
     <h2>Agenda compartilhada</h2>
     <form id="agenda-settings-form" class="stack-form" data-settings-form>
@@ -179,7 +194,7 @@
 
   <article class="panel">
     <h2>Configuracao atual</h2>
-    <p class="muted">Para garantir persistencia em producao, use um banco externo em `DATABASE_URL`, como AlwaysData, MySQL ou PostgreSQL. SQLite local fica apenas para testes simples.</p>
+    <p class="muted">Use SQLite local para desempenho e o backup manual no AlwaysData para restauracao ou seguranca extra em producao.</p>
     <div class="list-stack">
       {% for setting in settings_rows %}
         <div class="list-item"><strong>{{ setting.key }}</strong> {{ setting.value }}</div>

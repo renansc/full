@@ -9,6 +9,7 @@ from flask_login import current_user, login_required, login_user, logout_user
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
+from .database_backup import copy_database_contents
 from .extensions import db
 from .models import Conversation, Department, Label, Message, QuickReply, ReminderLog, Setting, Ticket, User, WorkflowState
 from .services import (
@@ -47,8 +48,40 @@ def _settings_map():
     return {row.key: row.value for row in Setting.query.all()}
 
 
-def _public_base_url():
-    base_url = current_app.config.get("PUBLIC_BASE_URL", "").strip().rstrip("/")
+def _upsert_setting(key, value):
+    row = Setting.query.filter_by(key=key).first() or Setting(key=key, value="")
+    row.value = "" if value is None else str(value).strip()
+    db.session.add(row)
+    return row
+
+
+def _runtime_setting(key, default="", settings_map=None):
+    settings_map = settings_map or _settings_map()
+    raw_value = settings_map.get(key, "")
+    value = str(raw_value).strip() if raw_value is not None else ""
+    if value:
+        return value
+    if default is None:
+        return ""
+    return str(default).strip()
+
+
+def _whatsapp_runtime_settings(settings_map=None):
+    settings_map = settings_map or _settings_map()
+    return {
+        "token": _runtime_setting("WHATSAPP_TOKEN", current_app.config.get("WHATSAPP_TOKEN", ""), settings_map),
+        "phone_number_id": _runtime_setting(
+            "WHATSAPP_PHONE_NUMBER_ID",
+            current_app.config.get("WHATSAPP_PHONE_NUMBER_ID", ""),
+            settings_map,
+        ),
+        "verify_token": _runtime_setting("WHATSAPP_VERIFY_TOKEN", current_app.config.get("WHATSAPP_VERIFY_TOKEN", ""), settings_map),
+        "api_version": _runtime_setting("WHATSAPP_API_VERSION", current_app.config.get("WHATSAPP_API_VERSION", "v20.0"), settings_map),
+    }
+
+
+def _public_base_url(settings_map=None):
+    base_url = _runtime_setting("PUBLIC_BASE_URL", current_app.config.get("PUBLIC_BASE_URL", ""), settings_map).rstrip("/")
     return base_url
 
 
@@ -232,9 +265,10 @@ def _mark_ticket_conversation_read(ticket):
     unread_messages = conversation.messages.filter(Message.direction == "incoming", Message.read_at.is_(None)).order_by(Message.created_at.asc()).all()
     if not unread_messages:
         return 0
-    token = current_app.config["WHATSAPP_TOKEN"]
-    version = current_app.config["WHATSAPP_API_VERSION"]
-    phone_number_id = current_app.config["WHATSAPP_PHONE_NUMBER_ID"]
+    whatsapp = _whatsapp_runtime_settings()
+    token = whatsapp["token"]
+    version = whatsapp["api_version"]
+    phone_number_id = whatsapp["phone_number_id"]
     marked = 0
     now = datetime.utcnow()
     for message in unread_messages:
@@ -324,7 +358,9 @@ def _integration_status(settings_map=None):
     database_uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
     backend = (database_uri.split(":", 1)[0] if ":" in database_uri else database_uri).split("+", 1)[0]
     database_is_sqlite = backend.startswith("sqlite")
-    whatsapp_ready = bool(current_app.config.get("WHATSAPP_TOKEN") and current_app.config.get("WHATSAPP_PHONE_NUMBER_ID"))
+    whatsapp = _whatsapp_runtime_settings(settings_map)
+    backup_database_url = _runtime_setting("BACKUP_DATABASE_URL", current_app.config.get("BACKUP_DATABASE_URL", ""), settings_map)
+    whatsapp_ready = bool(whatsapp["token"] and whatsapp["phone_number_id"])
     google_ready = bool(settings_map.get("GOOGLE_SERVICE_ACCOUNT_JSON") and settings_map.get("GOOGLE_SHEETS_SPREADSHEET_ID"))
     reminders_ready = _setting_bool(settings_map, "REMINDER_SEND_WHATSAPP", True) and bool(settings_map.get("REMINDER_MINUTES"))
     departments = Department.query.filter_by(is_active=True).count()
@@ -342,8 +378,13 @@ def _integration_status(settings_map=None):
         },
         {
             "name": "Webhook WhatsApp",
-            "status": "ok" if current_app.config.get("WHATSAPP_VERIFY_TOKEN") else "warn",
-            "detail": "Verify token definido" if current_app.config.get("WHATSAPP_VERIFY_TOKEN") else "Defina WHATSAPP_VERIFY_TOKEN",
+            "status": "ok" if whatsapp["verify_token"] else "warn",
+            "detail": "Verify token definido" if whatsapp["verify_token"] else "Defina WHATSAPP_VERIFY_TOKEN",
+        },
+        {
+            "name": "Backup AlwaysData",
+            "status": "ok" if backup_database_url else "warn",
+            "detail": "Backup manual configurado" if backup_database_url else "Defina BACKUP_DATABASE_URL",
         },
         {
             "name": "Google Sheets",
@@ -449,6 +490,7 @@ def settings():
     quick_replies = QuickReply.query.order_by(QuickReply.title.asc()).all()
     settings_rows = Setting.query.order_by(Setting.key.asc()).all()
     departments = Department.query.order_by(Department.name.asc()).all()
+    backup_database_url = _runtime_setting("BACKUP_DATABASE_URL", current_app.config.get("BACKUP_DATABASE_URL", ""), settings_map)
     users = [
         {
             "id": user.id,
@@ -467,10 +509,11 @@ def settings():
         quick_replies=quick_replies,
         settings_rows=settings_rows,
         settings_map=settings_map,
+        backup_database_url=backup_database_url,
         users=users,
         departments=departments,
         integration_status=_integration_status(settings_map),
-        public_base_url=_public_base_url(),
+        public_base_url=_public_base_url(settings_map),
         whatsapp_webhook_url=_whatsapp_webhook_url(),
         is_admin=current_user.role == "admin",
         user_payload=_login_payload(),
@@ -482,14 +525,16 @@ def settings():
 @login_required
 def calendar():
     settings_map = _settings_map()
+    google_client_id = _runtime_setting("GOOGLE_CLIENT_ID", current_app.config.get("GOOGLE_CLIENT_ID", ""), settings_map)
+    google_redirect_uri = _runtime_setting("GOOGLE_REDIRECT_URI", current_app.config.get("GOOGLE_REDIRECT_URI", ""), settings_map)
     auth_url = (
         make_google_auth_url(
-            current_app.config["GOOGLE_CLIENT_ID"],
-            current_app.config["GOOGLE_REDIRECT_URI"],
+            google_client_id,
+            google_redirect_uri,
             ["https://www.googleapis.com/auth/calendar"],
             state=str(current_user.id),
         )
-        if current_app.config["GOOGLE_CLIENT_ID"] and current_app.config["GOOGLE_REDIRECT_URI"]
+        if google_client_id and google_redirect_uri
         else None
     )
     preview = {"ok": False, "rows": [], "error": None}
@@ -808,11 +853,12 @@ def api_ticket_message(ticket_id):
         body = outgoing_body
         if public_media_url:
             body = f"{body}\n{public_media_url}" if body else public_media_url
+        whatsapp = _whatsapp_runtime_settings()
         send_result = _send_whatsapp_with_phone_variants(
             lambda to: send_whatsapp_text(
-                current_app.config["WHATSAPP_TOKEN"],
-                current_app.config["WHATSAPP_API_VERSION"],
-                current_app.config["WHATSAPP_PHONE_NUMBER_ID"],
+                whatsapp["token"],
+                whatsapp["api_version"],
+                whatsapp["phone_number_id"],
                 to=to,
                 body=body,
             ),
@@ -909,9 +955,7 @@ def api_save_setting():
     value = (payload.get("value") or "").strip()
     if not key:
         abort(400, "Chave obrigatoria.")
-    row = Setting.query.filter_by(key=key).first() or Setting(key=key, value=value)
-    row.value = value
-    db.session.add(row)
+    _upsert_setting(key, value)
     db.session.commit()
     return jsonify({"ok": True})
 
@@ -924,14 +968,72 @@ def api_save_settings_bulk():
     if not isinstance(items, dict):
         abort(400, "Formato invalido.")
     for key, value in items.items():
-        row = Setting.query.filter_by(key=key).first() or Setting(key=key, value="")
         if isinstance(value, bool):
-            row.value = "true" if value else "false"
+            stored_value = "true" if value else "false"
         else:
-            row.value = "" if value is None else str(value)
-        db.session.add(row)
+            stored_value = "" if value is None else str(value)
+        _upsert_setting(key, stored_value)
     db.session.commit()
     return jsonify({"ok": True, "saved": len(items)})
+
+
+@bp.route("/api/database/backup/push", methods=["POST"])
+@login_required
+def api_database_backup_push():
+    _require_admin()
+    payload = request.get_json(force=True, silent=True) or {}
+    backup_url = (payload.get("backup_url") or "").strip()
+    if backup_url:
+        _upsert_setting("BACKUP_DATABASE_URL", backup_url)
+        db.session.commit()
+    else:
+        backup_url = _runtime_setting("BACKUP_DATABASE_URL", current_app.config.get("BACKUP_DATABASE_URL", ""))
+    if not backup_url:
+        abort(400, "Defina BACKUP_DATABASE_URL antes de enviar o backup.")
+    source_url = db.engine.url.render_as_string(hide_password=False)
+    result = copy_database_contents(source_url, backup_url)
+    current_app.logger.info(
+        "database_backup_push ok=%s tables=%s rows=%s error=%s",
+        result.get("ok"),
+        result.get("tables_copied", 0),
+        result.get("rows_copied", 0),
+        result.get("error", ""),
+    )
+    if not result.get("ok"):
+        error_message = result.get("error", "Falha ao enviar backup.")
+        status_code = 400 if "vazio" in error_message.lower() or "inform" in error_message.lower() else 502
+        return jsonify({"ok": False, "error": error_message, "backup": result}), status_code
+    return jsonify({"ok": True, "mode": "push", "backup_url": backup_url, "backup": result})
+
+
+@bp.route("/api/database/backup/pull", methods=["POST"])
+@login_required
+def api_database_backup_pull():
+    _require_admin()
+    payload = request.get_json(force=True, silent=True) or {}
+    backup_url = (payload.get("backup_url") or "").strip()
+    if backup_url:
+        _upsert_setting("BACKUP_DATABASE_URL", backup_url)
+        db.session.commit()
+    else:
+        backup_url = _runtime_setting("BACKUP_DATABASE_URL", current_app.config.get("BACKUP_DATABASE_URL", ""))
+    if not backup_url:
+        abort(400, "Defina BACKUP_DATABASE_URL antes de puxar o backup.")
+    source_url = backup_url
+    target_url = db.engine.url.render_as_string(hide_password=False)
+    result = copy_database_contents(source_url, target_url)
+    current_app.logger.info(
+        "database_backup_pull ok=%s tables=%s rows=%s error=%s",
+        result.get("ok"),
+        result.get("tables_copied", 0),
+        result.get("rows_copied", 0),
+        result.get("error", ""),
+    )
+    if not result.get("ok"):
+        error_message = result.get("error", "Falha ao puxar backup.")
+        status_code = 400 if "vazio" in error_message.lower() or "inform" in error_message.lower() else 502
+        return jsonify({"ok": False, "error": error_message, "backup": result}), status_code
+    return jsonify({"ok": True, "mode": "pull", "backup_url": backup_url, "backup": result})
 
 
 @bp.route("/api/users", methods=["POST"])
@@ -1088,6 +1190,7 @@ def api_run_reminders():
     settings_map = _settings_map()
     reminder_minutes = int(settings_map.get("REMINDER_MINUTES", "120") or 120)
     send_via_whatsapp = _setting_bool(settings_map, "REMINDER_SEND_WHATSAPP", True)
+    whatsapp = _whatsapp_runtime_settings(settings_map)
     now = datetime.utcnow()
     reminders_sent = 0
     tickets = Ticket.query.filter(Ticket.due_at.isnot(None)).all()
@@ -1105,9 +1208,9 @@ def api_run_reminders():
         if send_via_whatsapp and ticket.client_phone:
             reminder_result = _send_whatsapp_with_phone_variants(
                 lambda to: send_whatsapp_text(
-                    settings_map.get("WHATSAPP_TOKEN", current_app.config["WHATSAPP_TOKEN"]),
-                    settings_map.get("WHATSAPP_API_VERSION", current_app.config["WHATSAPP_API_VERSION"]),
-                    settings_map.get("WHATSAPP_PHONE_NUMBER_ID", current_app.config["WHATSAPP_PHONE_NUMBER_ID"]),
+                    whatsapp["token"],
+                    whatsapp["api_version"],
+                    whatsapp["phone_number_id"],
                     to=to,
                     body=message,
                 ),
@@ -1138,9 +1241,10 @@ def api_whatsapp_send():
     payload = request.get_json(force=True)
     to = _normalized_phone(payload.get("to") or "")
     message_type = (payload.get("type") or "text").strip().lower()
-    token = current_app.config["WHATSAPP_TOKEN"]
-    version = current_app.config["WHATSAPP_API_VERSION"]
-    phone_number_id = current_app.config["WHATSAPP_PHONE_NUMBER_ID"]
+    whatsapp = _whatsapp_runtime_settings()
+    token = whatsapp["token"]
+    version = whatsapp["api_version"]
+    phone_number_id = whatsapp["phone_number_id"]
 
     if message_type != "read" and not to:
         abort(400, "Telefone de destino obrigatorio.")
@@ -1253,7 +1357,7 @@ def google_callback():
 @bp.route("/webhooks/whatsapp", methods=["GET", "POST"])
 def whatsapp_webhook():
     if request.method == "GET":
-        if request.args.get("hub.verify_token") == current_app.config["WHATSAPP_VERIFY_TOKEN"]:
+        if request.args.get("hub.verify_token") == _whatsapp_runtime_settings()["verify_token"]:
             return request.args.get("hub.challenge", ""), 200
         return "Unauthorized", 403
 
@@ -1305,9 +1409,10 @@ def whatsapp_webhook():
                     filename = (media_payload.get("filename") or "").strip()
                     message_content = caption or (filename if message_type == "document" else f"[{message_type}]")
                     if media_id:
+                        whatsapp = _whatsapp_runtime_settings()
                         media_result = download_whatsapp_media(
-                            current_app.config["WHATSAPP_TOKEN"],
-                            current_app.config["WHATSAPP_API_VERSION"],
+                            whatsapp["token"],
+                            whatsapp["api_version"],
                             media_id,
                         )
                         if media_result.get("ok"):

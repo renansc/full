@@ -131,6 +131,11 @@ body.sidebar-collapsed .sidebar .brand-mark {
   color: var(--text);
 }
 .secondary-btn, .quick-reply { padding: 12px 16px; }
+.button-row {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
 .danger-btn {
   border: 1px solid rgba(248, 113, 113, 0.28);
   color: #fecaca;

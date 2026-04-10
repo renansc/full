@@ -8,6 +8,7 @@ class BaseConfig:
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///zap.db")
     UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "instance/uploads")
     PUBLIC_BASE_URL = (os.getenv("PUBLIC_BASE_URL") or os.getenv("RENDER_EXTERNAL_URL", "")).rstrip("/")
+    BACKUP_DATABASE_URL = os.getenv("BACKUP_DATABASE_URL", "")
     TICKET_ARCHIVE_DAYS = int(os.getenv("TICKET_ARCHIVE_DAYS", "2"))
     WHATSAPP_TOKEN = os.getenv("WHATSAPP_TOKEN", "")
     WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID", "")
