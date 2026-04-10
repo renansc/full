@@ -1069,14 +1069,10 @@ function bindBackupControls() {
     return String(payload.BACKUP_DATABASE_URL || "").trim();
   }
 
-  async function persistBackupUrl(backupUrl) {
-    await csrfJson("/api/settings/bulk", "POST", { settings: { BACKUP_DATABASE_URL: backupUrl } });
-  }
-
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
-      await persistBackupUrl(readBackupUrl());
+      await csrfJson("/api/settings/bulk", "POST", { settings: { BACKUP_DATABASE_URL: readBackupUrl() } });
       showFeedback("URL do backup salva com sucesso.", "success");
       location.reload();
     } catch (error) {
@@ -1089,9 +1085,6 @@ function bindBackupControls() {
       const action = button.dataset.backupAction || "push";
       try {
         const backupUrl = readBackupUrl();
-        if (backupUrl) {
-          await persistBackupUrl(backupUrl);
-        }
         const endpoint = action === "pull" ? "/api/database/backup/pull" : "/api/database/backup/push";
         const payload = backupUrl ? { backup_url: backupUrl } : {};
         const result = await csrfJson(endpoint, "POST", payload);

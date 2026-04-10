@@ -980,60 +980,62 @@ def api_save_settings_bulk():
 @bp.route("/api/database/backup/push", methods=["POST"])
 @login_required
 def api_database_backup_push():
-    _require_admin()
-    payload = request.get_json(force=True, silent=True) or {}
-    backup_url = (payload.get("backup_url") or "").strip()
-    if backup_url:
-        _upsert_setting("BACKUP_DATABASE_URL", backup_url)
-        db.session.commit()
-    else:
-        backup_url = _runtime_setting("BACKUP_DATABASE_URL", current_app.config.get("BACKUP_DATABASE_URL", ""))
-    if not backup_url:
-        abort(400, "Defina BACKUP_DATABASE_URL antes de enviar o backup.")
-    source_url = db.engine.url.render_as_string(hide_password=False)
-    result = copy_database_contents(source_url, backup_url)
-    current_app.logger.info(
-        "database_backup_push ok=%s tables=%s rows=%s error=%s",
-        result.get("ok"),
-        result.get("tables_copied", 0),
-        result.get("rows_copied", 0),
-        result.get("error", ""),
-    )
-    if not result.get("ok"):
-        error_message = result.get("error", "Falha ao enviar backup.")
-        status_code = 400 if "vazio" in error_message.lower() or "inform" in error_message.lower() else 502
-        return jsonify({"ok": False, "error": error_message, "backup": result}), status_code
-    return jsonify({"ok": True, "mode": "push", "backup_url": backup_url, "backup": result})
+    try:
+        _require_admin()
+        payload = request.get_json(force=True, silent=True) or {}
+        backup_url = (payload.get("backup_url") or "").strip()
+        if not backup_url:
+            backup_url = _runtime_setting("BACKUP_DATABASE_URL", current_app.config.get("BACKUP_DATABASE_URL", ""))
+        if not backup_url:
+            abort(400, "Defina BACKUP_DATABASE_URL antes de enviar o backup.")
+        source_url = db.engine.url.render_as_string(hide_password=False)
+        result = copy_database_contents(source_url, backup_url)
+        current_app.logger.info(
+            "database_backup_push ok=%s tables=%s rows=%s error=%s",
+            result.get("ok"),
+            result.get("tables_copied", 0),
+            result.get("rows_copied", 0),
+            result.get("error", ""),
+        )
+        if not result.get("ok"):
+            error_message = result.get("error", "Falha ao enviar backup.")
+            status_code = 400 if "vazio" in error_message.lower() or "inform" in error_message.lower() else 502
+            return jsonify({"ok": False, "error": error_message, "backup": result}), status_code
+        return jsonify({"ok": True, "mode": "push", "backup_url": backup_url, "backup": result})
+    except Exception as exc:
+        current_app.logger.exception("database_backup_push failed")
+        return jsonify({"ok": False, "error": str(exc)}), 500
 
 
 @bp.route("/api/database/backup/pull", methods=["POST"])
 @login_required
 def api_database_backup_pull():
-    _require_admin()
-    payload = request.get_json(force=True, silent=True) or {}
-    backup_url = (payload.get("backup_url") or "").strip()
-    if backup_url:
-        _upsert_setting("BACKUP_DATABASE_URL", backup_url)
-        db.session.commit()
-    else:
-        backup_url = _runtime_setting("BACKUP_DATABASE_URL", current_app.config.get("BACKUP_DATABASE_URL", ""))
-    if not backup_url:
-        abort(400, "Defina BACKUP_DATABASE_URL antes de puxar o backup.")
-    source_url = backup_url
-    target_url = db.engine.url.render_as_string(hide_password=False)
-    result = copy_database_contents(source_url, target_url)
-    current_app.logger.info(
-        "database_backup_pull ok=%s tables=%s rows=%s error=%s",
-        result.get("ok"),
-        result.get("tables_copied", 0),
-        result.get("rows_copied", 0),
-        result.get("error", ""),
-    )
-    if not result.get("ok"):
-        error_message = result.get("error", "Falha ao puxar backup.")
-        status_code = 400 if "vazio" in error_message.lower() or "inform" in error_message.lower() else 502
-        return jsonify({"ok": False, "error": error_message, "backup": result}), status_code
-    return jsonify({"ok": True, "mode": "pull", "backup_url": backup_url, "backup": result})
+    try:
+        _require_admin()
+        payload = request.get_json(force=True, silent=True) or {}
+        backup_url = (payload.get("backup_url") or "").strip()
+        if not backup_url:
+            backup_url = _runtime_setting("BACKUP_DATABASE_URL", current_app.config.get("BACKUP_DATABASE_URL", ""))
+        if not backup_url:
+            abort(400, "Defina BACKUP_DATABASE_URL antes de puxar o backup.")
+        source_url = backup_url
+        target_url = db.engine.url.render_as_string(hide_password=False)
+        result = copy_database_contents(source_url, target_url)
+        current_app.logger.info(
+            "database_backup_pull ok=%s tables=%s rows=%s error=%s",
+            result.get("ok"),
+            result.get("tables_copied", 0),
+            result.get("rows_copied", 0),
+            result.get("error", ""),
+        )
+        if not result.get("ok"):
+            error_message = result.get("error", "Falha ao puxar backup.")
+            status_code = 400 if "vazio" in error_message.lower() or "inform" in error_message.lower() else 502
+            return jsonify({"ok": False, "error": error_message, "backup": result}), status_code
+        return jsonify({"ok": True, "mode": "pull", "backup_url": backup_url, "backup": result})
+    except Exception as exc:
+        current_app.logger.exception("database_backup_pull failed")
+        return jsonify({"ok": False, "error": str(exc)}), 500
 
 
 @bp.route("/api/users", methods=["POST"])
