@@ -8,7 +8,6 @@ from flask_login import LoginManager
 from sqlalchemy import inspect, text
 from werkzeug.exceptions import HTTPException
 
-from .database_sync import bootstrap_database_pair, register_backup_sync_hook
 from .config import get_config
 from .extensions import db
 from .models import Department, Label, QuickReply, User, WorkflowState
@@ -31,7 +30,6 @@ def create_app():
     login_manager.init_app(app)
     app.register_blueprint(main_bp)
     app.cli.add_command(init_db_command)
-    register_backup_sync_hook(app)
 
     def _is_api_request():
         path = request.path or ""
@@ -57,9 +55,7 @@ def create_app():
     with app.app_context():
         db.create_all()
         ensure_schema()
-        bootstrap_result = bootstrap_database_pair(app)
-        if bootstrap_result.get("action") == "none":
-            seed_defaults()
+        seed_defaults()
 
     return app
 
@@ -162,7 +158,5 @@ def ensure_schema():
 def init_db_command():
     db.create_all()
     ensure_schema()
-    bootstrap_result = bootstrap_database_pair()
-    if bootstrap_result.get("action") == "none":
-        seed_defaults()
+    seed_defaults()
     click.echo("Banco inicializado com sucesso.")

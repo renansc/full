@@ -10,7 +10,6 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
 from .extensions import db
-from .database_sync import backup_database_url
 from .models import Conversation, Department, Label, Message, QuickReply, ReminderLog, Setting, Ticket, User, WorkflowState
 from .services import (
     iso_now,
@@ -325,9 +324,6 @@ def _integration_status(settings_map=None):
     database_uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
     backend = (database_uri.split(":", 1)[0] if ":" in database_uri else database_uri).split("+", 1)[0]
     database_is_sqlite = backend.startswith("sqlite")
-    backup_url = backup_database_url()
-    backup_backend = (backup_url.split(":", 1)[0] if ":" in backup_url else backup_url).split("+", 1)[0]
-    backup_ready = bool(backup_url)
     whatsapp_ready = bool(current_app.config.get("WHATSAPP_TOKEN") and current_app.config.get("WHATSAPP_PHONE_NUMBER_ID"))
     google_ready = bool(settings_map.get("GOOGLE_SERVICE_ACCOUNT_JSON") and settings_map.get("GOOGLE_SHEETS_SPREADSHEET_ID"))
     reminders_ready = _setting_bool(settings_map, "REMINDER_SEND_WHATSAPP", True) and bool(settings_map.get("REMINDER_MINUTES"))
@@ -336,13 +332,8 @@ def _integration_status(settings_map=None):
     return [
         {
             "name": "Banco de dados",
-            "status": "ok" if (not database_is_sqlite or backup_ready) and backend else "warn",
-            "detail": "SQLite local com backup externo" if database_is_sqlite and backup_ready else ("SQLite local - dados podem sumir no redeploy" if database_is_sqlite else (backend or "Nao configurado")),
-        },
-        {
-            "name": "Backup AlwaysData",
-            "status": "ok" if backup_ready else "warn",
-            "detail": f"Espelhando em {backup_backend}" if backup_ready else "Configure BACKUP_DATABASE_URL",
+            "status": "ok" if backend else "warn",
+            "detail": "SQLite local - dados podem sumir no redeploy" if database_is_sqlite else (backend or "Nao configurado"),
         },
         {
             "name": "WhatsApp Cloud API",

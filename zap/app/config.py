@@ -6,7 +6,6 @@ class BaseConfig:
     SESSION_COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "zap_session")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///zap.db")
-    BACKUP_DATABASE_URL = os.getenv("BACKUP_DATABASE_URL", "")
     UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "instance/uploads")
     PUBLIC_BASE_URL = (os.getenv("PUBLIC_BASE_URL") or os.getenv("RENDER_EXTERNAL_URL", "")).rstrip("/")
     TICKET_ARCHIVE_DAYS = int(os.getenv("TICKET_ARCHIVE_DAYS", "2"))
