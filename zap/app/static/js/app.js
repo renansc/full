@@ -1064,20 +1064,19 @@ function bindBackupControls() {
   const form = document.getElementById("backup-settings-form");
   if (!form) return;
 
-  async function saveBackupUrl(allowEmpty = true) {
+  function readBackupUrl() {
     const payload = serializeForm(form);
-    const backupUrl = String(payload.BACKUP_DATABASE_URL || "").trim();
-    if (!allowEmpty && !backupUrl) {
-      throw new Error("Defina a URL do backup antes de executar a acao.");
-    }
+    return String(payload.BACKUP_DATABASE_URL || "").trim();
+  }
+
+  async function persistBackupUrl(backupUrl) {
     await csrfJson("/api/settings/bulk", "POST", { settings: { BACKUP_DATABASE_URL: backupUrl } });
-    return backupUrl;
   }
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
-      await saveBackupUrl(true);
+      await persistBackupUrl(readBackupUrl());
       showFeedback("URL do backup salva com sucesso.", "success");
       location.reload();
     } catch (error) {
@@ -1089,10 +1088,17 @@ function bindBackupControls() {
     button.addEventListener("click", async () => {
       const action = button.dataset.backupAction || "push";
       try {
-        const backupUrl = await saveBackupUrl(false);
+        const backupUrl = readBackupUrl();
+        if (backupUrl) {
+          await persistBackupUrl(backupUrl);
+        }
         const endpoint = action === "pull" ? "/api/database/backup/pull" : "/api/database/backup/push";
-        await csrfJson(endpoint, "POST", { backup_url: backupUrl });
-        showFeedback(action === "pull" ? "Backup puxado com sucesso." : "Backup enviado com sucesso.", "success");
+        const payload = backupUrl ? { backup_url: backupUrl } : {};
+        const result = await csrfJson(endpoint, "POST", payload);
+        const rowsCopied = result?.backup?.rows_copied ?? result?.rows_copied ?? 0;
+        const tablesCopied = result?.backup?.tables_copied ?? result?.tables_copied ?? 0;
+        const prefix = action === "pull" ? "Backup puxado com sucesso." : "Backup enviado com sucesso.";
+        showFeedback(`${prefix} ${tablesCopied} tabelas e ${rowsCopied} linhas sincronizadas.`, "success");
         location.reload();
       } catch (error) {
         showFeedback(error.message);
