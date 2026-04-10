@@ -47,7 +47,6 @@ def build_backup_database_url(settings_map=None, overrides=None, fallback_url=""
     values = {**settings_map, **overrides}
 
     raw_url = (values.get("BACKUP_DATABASE_URL") or "").strip()
-    driver = (values.get("BACKUP_DB_DRIVER") or "").strip() or "mysql+pymysql"
     host = (values.get("BACKUP_DB_HOST") or "").strip()
     port = (values.get("BACKUP_DB_PORT") or "").strip()
     database = (values.get("BACKUP_DB_NAME") or "").strip()
@@ -55,8 +54,8 @@ def build_backup_database_url(settings_map=None, overrides=None, fallback_url=""
     password = values.get("BACKUP_DB_PASSWORD")
     query_string = (values.get("BACKUP_DB_QUERY") or "").strip()
 
-    has_components = any([host, port, database, username, password, query_string])
-    if has_components:
+    if host or database or username or password:
+        driver = (values.get("BACKUP_DB_DRIVER") or "").strip() or "mysql+pymysql"
         query = dict(parse_qsl(query_string, keep_blank_values=True))
         port_value = int(port) if str(port).isdigit() else None
         if not (host and database and username):
