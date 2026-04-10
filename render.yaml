@@ -22,7 +22,7 @@ services:
       - key: DATABASE_URL
         sync: false
       - key: DB_SSL
-        value: "false"
+        value: "true"
       - key: FINANCE_SCRAPER_TIMEOUT_SECONDS
         value: "12"
       - key: FINANCE_RESEARCH_MAX_OFFERS

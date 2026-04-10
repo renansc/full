@@ -19,3 +19,7 @@ Repositorio preparado para deploy da FULL com rotas dedicadas:
 ## Render
 
 O `render.yaml` ja esta preparado para publicar o servico como `nanotech-full`.
+
+Para banco externo no Render, deixe `DB_SSL=true` e prefira preencher `DB_PROVIDER`, `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER` e `DB_PASSWORD` se nao quiser depender de uma `DATABASE_URL` completa.
+
+O usuario do banco precisa ter permissao para criar e alterar tabelas, porque o app chama `create_all()` na inicializacao.

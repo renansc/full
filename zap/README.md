@@ -25,12 +25,13 @@ Sistema web em Flask para vendas e prestacao de servicos com:
 
 1. Copie `.env.example` para `.env`.
 2. Configure `DATABASE_URL` para o banco que vai manter os dados em producao.
-3. Defina o usuario admin inicial.
-4. Configure WhatsApp, Google Sheets e lembretes.
-5. No Render, o app usa `RENDER_EXTERNAL_URL` automaticamente. Se o Zap estiver embutido na Nanotech, a callback publica fica em `/zap/webhooks/whatsapp`; se estiver standalone, fica em `/webhooks/whatsapp`.
-6. Inicialize o banco com `init-db`.
-7. Abra o sistema e revise o menu Configuracao.
-8. Se o Zap rodar no mesmo dominio da Nanotech, mantenha `SESSION_COOKIE_NAME=zap_session` para evitar conflito de login com o portal principal.
+3. No Render, deixe `DB_SSL=true` para banco externo.
+4. Defina o usuario admin inicial.
+5. Configure WhatsApp, Google Sheets e lembretes.
+6. No Render, o app usa `RENDER_EXTERNAL_URL` automaticamente. Se o Zap estiver embutido na Nanotech, a callback publica fica em `/zap/webhooks/whatsapp`; se estiver standalone, fica em `/webhooks/whatsapp`.
+7. Inicialize o banco com `init-db`.
+8. Abra o sistema e revise o menu Configuracao.
+9. Se o Zap rodar no mesmo dominio da Nanotech, mantenha `SESSION_COOKIE_NAME=zap_session` para evitar conflito de login com o portal principal.
 
 ## Rodar localmente
 
