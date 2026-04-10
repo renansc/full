@@ -10,6 +10,7 @@ from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
 from .extensions import db
+from .database_sync import backup_database_url
 from .models import Conversation, Department, Label, Message, QuickReply, ReminderLog, Setting, Ticket, User, WorkflowState
 from .services import (
     iso_now,
@@ -285,12 +286,27 @@ def _default_department():
     return Department.query.filter_by(is_default=True, is_active=True).first() or Department.query.filter_by(is_active=True).order_by(Department.id.asc()).first() or Department.query.order_by(Department.id.asc()).first()
 
 
-def _ticket_department_id(payload):
-    raw = payload.get("department_id")
-    if raw and str(raw).strip().isdigit():
+def _resolve_department(value):
+    raw = ("" if value is None else str(value)).strip()
+    if not raw:
+        return None
+    if raw.isdigit():
         department = db.session.get(Department, int(raw))
         if department and department.is_active:
-            return department.id
+            return department
+        return None
+    normalized = raw.lower()
+    department = Department.query.filter(db.func.lower(Department.name) == normalized).first()
+    if department and department.is_active:
+        return department
+    return None
+
+
+def _ticket_department_id(payload):
+    raw = payload.get("department_id")
+    department = _resolve_department(raw)
+    if department:
+        return department.id
     if getattr(current_user, "department_id", None):
         return current_user.department_id
     department = _default_department()
@@ -307,8 +323,11 @@ def _visible_ticket(ticket, cutoff):
 def _integration_status(settings_map=None):
     settings_map = settings_map or _settings_map()
     database_uri = current_app.config.get("SQLALCHEMY_DATABASE_URI", "")
-    backend = database_uri.split(":", 1)[0] if ":" in database_uri else database_uri
+    backend = (database_uri.split(":", 1)[0] if ":" in database_uri else database_uri).split("+", 1)[0]
     database_is_sqlite = backend.startswith("sqlite")
+    backup_url = backup_database_url()
+    backup_backend = (backup_url.split(":", 1)[0] if ":" in backup_url else backup_url).split("+", 1)[0]
+    backup_ready = bool(backup_url)
     whatsapp_ready = bool(current_app.config.get("WHATSAPP_TOKEN") and current_app.config.get("WHATSAPP_PHONE_NUMBER_ID"))
     google_ready = bool(settings_map.get("GOOGLE_SERVICE_ACCOUNT_JSON") and settings_map.get("GOOGLE_SHEETS_SPREADSHEET_ID"))
     reminders_ready = _setting_bool(settings_map, "REMINDER_SEND_WHATSAPP", True) and bool(settings_map.get("REMINDER_MINUTES"))
@@ -317,8 +336,13 @@ def _integration_status(settings_map=None):
     return [
         {
             "name": "Banco de dados",
-            "status": "warn" if database_is_sqlite or not backend else "ok",
-            "detail": "SQLite local - dados podem sumir no redeploy" if database_is_sqlite else (backend or "Nao configurado"),
+            "status": "ok" if (not database_is_sqlite or backup_ready) and backend else "warn",
+            "detail": "SQLite local com backup externo" if database_is_sqlite and backup_ready else ("SQLite local - dados podem sumir no redeploy" if database_is_sqlite else (backend or "Nao configurado")),
+        },
+        {
+            "name": "Backup AlwaysData",
+            "status": "ok" if backup_ready else "warn",
+            "detail": f"Espelhando em {backup_backend}" if backup_ready else "Configure BACKUP_DATABASE_URL",
         },
         {
             "name": "WhatsApp Cloud API",

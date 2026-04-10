@@ -137,6 +137,12 @@ DATABASE_URL=mysql+pymysql://user:password@host:3306/zap_workflow
 DATABASE_URL=postgresql+psycopg2://user:password@host:5432/zap_workflow
 ```
 
+Se quiser manter o banco local como cache e espelhar os dados em paralelo, defina tambem `BACKUP_DATABASE_URL` com o banco externo.
+
+```env
+BACKUP_DATABASE_URL=postgresql+psycopg2://user:password@host:5432/zap_workflow
+```
+
 ## Teste rapido
 
 ### WhatsApp

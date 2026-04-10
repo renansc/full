@@ -179,7 +179,7 @@
 
   <article class="panel">
     <h2>Configuracao atual</h2>
-    <p class="muted">Se o status do banco mostrar SQLite local, os cards nao vao sobreviver a um novo deploy. Para persistir de verdade, use um banco externo no `DATABASE_URL`, como AlwaysData, MySQL ou PostgreSQL.</p>
+    <p class="muted">Se o status do banco mostrar SQLite local sem backup, os cards nao vao sobreviver a um novo deploy. Para manter o local como cache e espelhar em paralelo, configure `BACKUP_DATABASE_URL` com um banco externo, como AlwaysData, MySQL ou PostgreSQL.</p>
     <div class="list-stack">
       {% for setting in settings_rows %}
         <div class="list-item"><strong>{{ setting.key }}</strong> {{ setting.value }}</div>

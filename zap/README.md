@@ -11,6 +11,7 @@ Sistema web em Flask para vendas e prestacao de servicos com:
 - agenda compartilhada via Google Sheets
 - lembretes programados
 - suporte a MySQL ou PostgreSQL via `DATABASE_URL`
+- backup espelhado em banco externo via `BACKUP_DATABASE_URL`
 - deploy com `gunicorn`
 
 ## Estrutura
@@ -25,12 +26,13 @@ Sistema web em Flask para vendas e prestacao de servicos com:
 
 1. Copie `.env.example` para `.env`.
 2. Escolha um banco em `DATABASE_URL`.
-3. Defina o usuario admin inicial.
-4. Configure WhatsApp, Google Sheets e lembretes.
-5. No Render, o app usa `RENDER_EXTERNAL_URL` automaticamente. Se o Zap estiver embutido na Nanotech, a callback publica fica em `/zap/webhooks/whatsapp`; se estiver standalone, fica em `/webhooks/whatsapp`.
-6. Inicialize o banco com `init-db`.
-7. Abra o sistema e revise o menu Configuracao.
-8. Se o Zap rodar no mesmo dominio da Nanotech, mantenha `SESSION_COOKIE_NAME=zap_session` para evitar conflito de login com o portal principal.
+3. Se quiser manter o banco local como cache e persistir em paralelo, preencha `BACKUP_DATABASE_URL` com o banco externo.
+4. Defina o usuario admin inicial.
+5. Configure WhatsApp, Google Sheets e lembretes.
+6. No Render, o app usa `RENDER_EXTERNAL_URL` automaticamente. Se o Zap estiver embutido na Nanotech, a callback publica fica em `/zap/webhooks/whatsapp`; se estiver standalone, fica em `/webhooks/whatsapp`.
+7. Inicialize o banco com `init-db`.
+8. Abra o sistema e revise o menu Configuracao.
+9. Se o Zap rodar no mesmo dominio da Nanotech, mantenha `SESSION_COOKIE_NAME=zap_session` para evitar conflito de login com o portal principal.
 
 ## Rodar localmente
 
@@ -68,6 +70,12 @@ DATABASE_URL=mysql+pymysql://user:password@host:3306/zap_workflow
 DATABASE_URL=postgresql+psycopg2://user:password@host:5432/zap_workflow
 ```
 
+Se quiser manter o banco local como cache e sincronizar um espelho externo, use:
+
+```env
+BACKUP_DATABASE_URL=postgresql+psycopg2://user:password@host:5432/zap_workflow
+```
+
 ## Integracoes
 
 O menu de documentacao traz os fluxos e links oficiais. O resumo tambem esta em:
@@ -77,10 +85,11 @@ O menu de documentacao traz os fluxos e links oficiais. O resumo tambem esta em:
 ## Produção
 
 1. Rode a homologacao com o mesmo `DATABASE_URL` que vai usar em producao.
-2. Cadastre estados, departamentos e usuarios.
-3. Valide o webhook do WhatsApp com uma mensagem real.
-4. Teste agenda, lembretes e upload de arquivos.
-5. Publique a revisao no GitHub e faça o deploy da mesma versao.
+2. Se usar cache local, preencha tambem `BACKUP_DATABASE_URL` para nao perder dados no deploy.
+3. Cadastre estados, departamentos e usuarios.
+4. Valide o webhook do WhatsApp com uma mensagem real.
+5. Teste agenda, lembretes e upload de arquivos.
+6. Publique a revisao no GitHub e faça o deploy da mesma versao.
 
 ## Proximos passos recomendados
 
