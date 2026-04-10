@@ -145,25 +145,29 @@ def bootstrap_database_pair(app=None):
     if not backup_url:
         return {"action": "none", "copied_rows": 0}
 
-    backup_engine = _engine_for(backup_url)
-    local_has_rows = _database_has_rows(db.engine)
-    backup_has_rows = _database_has_rows(backup_engine)
+    try:
+        backup_engine = _engine_for(backup_url)
+        local_has_rows = _database_has_rows(db.engine)
+        backup_has_rows = _database_has_rows(backup_engine)
 
-    if local_has_rows:
-        try:
-            copied_rows = mirror_database(db.engine, backup_engine)
-            return {"action": "synced_local_to_backup", "copied_rows": copied_rows}
-        except Exception:
-            app.logger.exception("Nao foi possivel sincronizar o banco local para o backup externo.")
-            return {"action": "error", "copied_rows": 0}
+        if local_has_rows:
+            try:
+                copied_rows = mirror_database(db.engine, backup_engine)
+                return {"action": "synced_local_to_backup", "copied_rows": copied_rows}
+            except Exception:
+                app.logger.exception("Nao foi possivel sincronizar o banco local para o backup externo.")
+                return {"action": "error", "copied_rows": 0}
 
-    if backup_has_rows:
-        try:
-            copied_rows = mirror_database(backup_engine, db.engine)
-            return {"action": "restored_backup_to_local", "copied_rows": copied_rows}
-        except Exception:
-            app.logger.exception("Nao foi possivel restaurar o banco local a partir do backup externo.")
-            return {"action": "error", "copied_rows": 0}
+        if backup_has_rows:
+            try:
+                copied_rows = mirror_database(backup_engine, db.engine)
+                return {"action": "restored_backup_to_local", "copied_rows": copied_rows}
+            except Exception:
+                app.logger.exception("Nao foi possivel restaurar o banco local a partir do backup externo.")
+                return {"action": "error", "copied_rows": 0}
+    except Exception:
+        app.logger.exception("Nao foi possivel preparar o espelho do banco externo.")
+        return {"action": "error", "copied_rows": 0}
 
     return {"action": "none", "copied_rows": 0}
 

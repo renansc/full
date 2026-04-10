@@ -22,13 +22,52 @@ from typing import Any
 from urllib.parse import quote, urlencode
 
 from dotenv import load_dotenv
-from finance_research import DEFAULT_ALLOWED_DOMAINS, DEFAULT_USER_AGENT, ScraperError, build_scraper_diagnostic, run_scraper_purchase_research
 from flask import Flask, abort, jsonify, redirect, request, send_from_directory, session
 from sqlalchemy import Boolean, Float, Integer, String, Text, create_engine, delete, inspect, select, text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
+
+try:
+    from finance_research import (
+        DEFAULT_ALLOWED_DOMAINS,
+        DEFAULT_USER_AGENT,
+        ScraperError,
+        build_scraper_diagnostic,
+        run_scraper_purchase_research,
+    )
+except Exception as exc:  # pragma: no cover - optional dependency guard
+    FINANCE_RESEARCH_IMPORT_ERROR = exc
+    DEFAULT_ALLOWED_DOMAINS = (
+        "mercadolivre.com.br",
+        "amazon.com.br",
+        "magazineluiza.com.br",
+        "kabum.com.br",
+        "casasbahia.com.br",
+        "pontofrio.com.br",
+        "carrefour.com.br",
+        "leroymerlin.com.br",
+        "madeiramadeira.com.br",
+        "pichau.com.br",
+    )
+    DEFAULT_USER_AGENT = (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+        "(KHTML, like Gecko) Chrome/123.0 Safari/537.36"
+    )
+
+    class ScraperError(RuntimeError):
+        pass
+
+    def build_scraper_diagnostic(*args, **kwargs):
+        return {
+            "ok": False,
+            "error": "Modulo de pesquisa financeira indisponivel.",
+            "details": str(FINANCE_RESEARCH_IMPORT_ERROR),
+        }
+
+    def run_scraper_purchase_research(*args, **kwargs):
+        raise AppError(503, "Modulo de pesquisa financeira indisponivel.")
 
 try:
     from PIL import Image, ImageOps
