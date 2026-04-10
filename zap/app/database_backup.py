@@ -1,4 +1,7 @@
+from urllib.parse import parse_qsl, unquote, urlsplit
+
 from sqlalchemy import create_engine, select
+from sqlalchemy.engine import URL
 
 from .extensions import db
 
@@ -11,14 +14,39 @@ def _toggle_foreign_keys(connection, enabled: bool):
         connection.exec_driver_sql(f"SET FOREIGN_KEY_CHECKS={'1' if enabled else '0'}")
 
 
+def _engine_from_url(raw_url: str):
+    raw_url = (raw_url or "").strip()
+    try:
+        return create_engine(raw_url, pool_pre_ping=True)
+    except Exception as exc:
+        message = str(exc).lower()
+        if "parse sqlalchemy url" not in message and "could not parse" not in message:
+            raise
+        parsed = urlsplit(raw_url)
+        if not parsed.scheme or not parsed.hostname:
+            raise
+        query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+        database = parsed.path.lstrip("/")
+        url = URL.create(
+            drivername=parsed.scheme,
+            username=unquote(parsed.username or ""),
+            password=unquote(parsed.password or ""),
+            host=parsed.hostname,
+            port=parsed.port,
+            database=unquote(database),
+            query=query,
+        )
+        return create_engine(url, pool_pre_ping=True)
+
+
 def copy_database_contents(source_url: str, target_url: str):
     source_url = (source_url or "").strip()
     target_url = (target_url or "").strip()
     if not source_url or not target_url:
         return {"ok": False, "error": "Fonte ou destino do backup nao informados."}
 
-    source_engine = create_engine(source_url, pool_pre_ping=True)
-    target_engine = create_engine(target_url, pool_pre_ping=True)
+    source_engine = _engine_from_url(source_url)
+    target_engine = _engine_from_url(target_url)
     tables_copied = 0
     rows_copied = 0
 
