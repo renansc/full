@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="pt-br">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Politica de Privacidade - Nanotech</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #07111f;
+        --panel: rgba(14, 24, 42, 0.9);
+        --border: rgba(148, 163, 184, 0.18);
+        --text: #e5eefc;
+        --muted: #9aa9c4;
+        --accent: #38bdf8;
+        --accent-2: #25d366;
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; min-height: 100%; }
+      body {
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(circle at top left, rgba(56, 189, 248, 0.18), transparent 28%),
+          radial-gradient(circle at top right, rgba(37, 211, 102, 0.12), transparent 30%),
+          linear-gradient(180deg, #050b14, var(--bg));
+      }
+      .wrap {
+        width: min(920px, calc(100% - 32px));
+        margin: 0 auto;
+        padding: 40px 0 56px;
+      }
+      .hero {
+        padding: 28px;
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        background: var(--panel);
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+      }
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        font-size: 0.72rem;
+        color: #8ad7ff;
+        margin: 0 0 10px;
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: clamp(2rem, 4vw, 3.2rem);
+        line-height: 1;
+      }
+      .lead, p, li { color: var(--muted); line-height: 1.7; }
+      .content {
+        margin-top: 18px;
+        display: grid;
+        gap: 18px;
+      }
+      .section {
+        padding: 22px 24px;
+        border-radius: 20px;
+        border: 1px solid var(--border);
+        background: rgba(6, 15, 30, 0.6);
+      }
+      h2 {
+        margin: 0 0 10px;
+        font-size: 1.2rem;
+        color: var(--text);
+      }
+      ul { margin: 0; padding-left: 18px; }
+      a { color: var(--accent); text-decoration: none; }
+      .meta {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 16px;
+      }
+      .pill {
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.08);
+        font-size: 0.82rem;
+      }
+      .back {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 18px;
+        color: var(--text);
+      }
+      .back strong { color: var(--accent-2); }
+      @media (max-width: 640px) {
+        .wrap { width: min(100% - 20px, 920px); padding: 20px 0 36px; }
+        .hero, .section { padding: 20px; }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="wrap">
+      <section class="hero">
+        <p class="eyebrow">Nanotech</p>
+        <h1>Politica de Privacidade</h1>
+        <p class="lead">
+          Esta pagina explica, de forma simples, como a Nanotech trata os dados usados no portal e nos modulos integrados.
+        </p>
+        <div class="meta">
+          <span class="pill">Acesso publico</span>
+          <span class="pill">Sem login</span>
+          <span class="pill">Atualizado em 2026</span>
+        </div>
+      </section>
+
+      <section class="content">
+        <article class="section">
+          <h2>1. Quais dados coletamos</h2>
+          <p>
+            Podemos coletar dados informados por voce, como nome, e-mail, telefone, mensagens, anexos, informacoes de atendimento, agendamentos e registros operacionais.
+          </p>
+        </article>
+
+        <article class="section">
+          <h2>2. Para que usamos os dados</h2>
+          <ul>
+            <li>Gerenciar atendimentos, tickets e conversas.</li>
+            <li>Operar integracoes com WhatsApp, agenda e automacoes.</li>
+            <li>Manter historico interno de operacao e auditoria.</li>
+            <li>Melhorar a experiencia e a continuidade do atendimento.</li>
+          </ul>
+        </article>
+
+        <article class="section">
+          <h2>3. Compartilhamento</h2>
+          <p>
+            Os dados podem ser compartilhados com servicos necessarios para o funcionamento da plataforma, como WhatsApp, Google Sheets, provedores de hospedagem e banco de dados, sempre conforme a operacao configurada.
+          </p>
+        </article>
+
+        <article class="section">
+          <h2>4. Retencao e seguranca</h2>
+          <p>
+            Mantemos os dados enquanto forem uteis para a operacao e enquanto houver necessidade legal ou contratual. Aplicamos medidas razoaveis de seguranca, controle de acesso e armazenamento.
+          </p>
+        </article>
+
+        <article class="section">
+          <h2>5. Seus direitos</h2>
+          <p>
+            Voce pode solicitar acesso, correcao, exclusao ou esclarecimentos sobre os dados tratados pelo sistema, respeitando as obrigacoes legais e operacionais da empresa.
+          </p>
+        </article>
+
+        <article class="section">
+          <h2>6. Contato</h2>
+          <p>
+            Para falar sobre privacidade e dados, entre em contato com a equipe responsavel da Nanotech pelos canais internos da empresa.
+          </p>
+          <a class="back" href="/"><strong>Voltar</strong> para o inicio</a>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>
