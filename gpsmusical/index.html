@@ -232,6 +232,16 @@ audio{width:100%}
           <input id="notesInput" placeholder="capotraste, ritmo, etc.">
         </div>
       </div>
+
+      <div class="row">
+        <div class="field grow">
+          <label>Spotify (link, URI ou ID da faixa)</label>
+          <input id="spotifyInput" placeholder="Ex: https://open.spotify.com/track/... ou spotify:track:...">
+        </div>
+      </div>
+      <div class="hint small">
+        Cole o link da música no Spotify para abrir rápido no app/navegador e habilitar o player incorporado quando disponível.
+      </div>
     </div>
 
     <!-- Audio editor: store in IndexedDB, not JSON -->
@@ -298,6 +308,20 @@ audio{width:100%}
       </div>
       <div class="hint small">
         O MP3 fica salvo só neste dispositivo (IndexedDB). No backup JSON vai apenas a letra/cifra/tempos.
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="row space-between" style="align-items:center">
+        <div style="font-weight:900">Spotify</div>
+        <div class="row">
+          <button class="btn ok" id="spotifyOpenBtn" onclick="SPOTIFY_openCurrent()" type="button">Abrir no Spotify</button>
+        </div>
+      </div>
+      <div class="mini" id="spotifyStatus" style="margin-top:8px">Nenhum link do Spotify vinculado.</div>
+      <div id="spotifyEmbedView" style="margin-top:12px"></div>
+      <div class="hint small">
+        O embed reproduz a prévia/player incorporado do Spotify quando o navegador permitir. Para reprodução completa, o usuário pode abrir no app/site do Spotify.
       </div>
     </div>
 
@@ -378,6 +402,10 @@ audio{width:100%}
 
       <div style="margin-top:12px">
         <div id="audioDockStage"></div>
+      </div>
+
+      <div style="margin-top:12px">
+        <div id="spotifyEmbedStage"></div>
       </div>
     </div>
 
@@ -491,6 +519,7 @@ function normalizeSongs(songs){
     key: (s?.key || "").toString(),
     tags: Array.isArray(s?.tags) ? s.tags.map(tag=>String(tag)) : [],
     notes: (s?.notes || "").toString(),
+    spotify: (s?.spotify || "").toString(),
     audioMeta: s?.audioMeta && typeof s.audioMeta === "object"
       ? {
           name: (s.audioMeta.name || "").toString(),
@@ -602,7 +631,7 @@ function UI_filteredSongs(){
   if(q){
     list = list.filter(s=>{
       const hay = [
-        s.title, s.artist, s.key, (s.tags||[]).join(","), s.notes,
+        s.title, s.artist, s.key, (s.tags||[]).join(","), s.notes, s.spotify,
         s.audioMeta?.name || "",
         ...(s.blocks||[]).map(b=>[b.type,b.title,b.chords,b.lyrics,b.timeSec].join(" "))
       ].join(" ");
@@ -663,6 +692,7 @@ function UI_openSongView(id){
   if(song.tags?.length) meta.push("Tags: " + song.tags.join(", "));
   if(song.notes) meta.push("Obs: " + song.notes);
   document.getElementById("viewMeta").textContent = meta.join(" • ") || "—";
+  SPOTIFY_render(song, "view");
 
   // carregar áudio do IndexedDB (se tiver)
   AUDIO_loadSongToPlayers(song).catch(err=>{
@@ -707,6 +737,7 @@ function UI_resetEditor(){
   document.getElementById("keyInput").value="";
   document.getElementById("tagsInput").value="";
   document.getElementById("notesInput").value="";
+  document.getElementById("spotifyInput").value="";
   document.getElementById("blocksEditor").innerHTML="";
   document.getElementById("deleteSongBtn").disabled = true;
   document.getElementById("audioFileEditor").value = "";
@@ -771,6 +802,7 @@ async function UI_saveSong(){
     key: document.getElementById("keyInput").value.trim(),
     tags: document.getElementById("tagsInput").value.split(",").map(t=>t.trim()).filter(Boolean),
     notes: document.getElementById("notesInput").value.trim(),
+    spotify: document.getElementById("spotifyInput").value.trim(),
     blocks: UI_blocksFromEditor(),
     updatedAt: nowISO(),
   };
@@ -824,6 +856,7 @@ async function UI_editCurrent(){
   document.getElementById("keyInput").value = song.key || "";
   document.getElementById("tagsInput").value = (song.tags||[]).join(", ");
   document.getElementById("notesInput").value = song.notes || "";
+  document.getElementById("spotifyInput").value = song.spotify || "";
   document.getElementById("blocksEditor").innerHTML = "";
   (song.blocks||[]).forEach(b=>UI_addBlock(b));
   document.getElementById("deleteSongBtn").disabled = false;
@@ -941,6 +974,81 @@ async function AUDIO_removeFromCurrentSong(){
   await AUDIO_loadSongToPlayers(song);
 }
 
+/* ===== Spotify ===== */
+function SPOTIFY_extractTrackId(value){
+  const raw = (value || "").trim();
+  if(!raw) return "";
+
+  const uriMatch = raw.match(/^spotify:track:([a-zA-Z0-9]+)$/i);
+  if(uriMatch) return uriMatch[1];
+
+  const idMatch = raw.match(/^[a-zA-Z0-9]{22}$/);
+  if(idMatch) return raw;
+
+  try{
+    const url = new URL(raw);
+    const parts = url.pathname.split("/").filter(Boolean);
+    const trackIndex = parts.findIndex(part => part === "track");
+    if(trackIndex >= 0 && parts[trackIndex + 1]){
+      return parts[trackIndex + 1];
+    }
+  }catch{}
+
+  return "";
+}
+function SPOTIFY_trackUrl(value){
+  const trackId = SPOTIFY_extractTrackId(value);
+  return trackId ? `https://open.spotify.com/track/${trackId}` : "";
+}
+function SPOTIFY_embedUrl(value){
+  const trackId = SPOTIFY_extractTrackId(value);
+  return trackId ? `https://open.spotify.com/embed/track/${trackId}?utm_source=generator` : "";
+}
+function SPOTIFY_render(song, where="view"){
+  const status = document.getElementById("spotifyStatus");
+  const viewRoot = document.getElementById("spotifyEmbedView");
+  const stageRoot = document.getElementById("spotifyEmbedStage");
+  if(viewRoot) viewRoot.innerHTML = "";
+  if(stageRoot) stageRoot.innerHTML = "";
+
+  const trackUrl = SPOTIFY_trackUrl(song?.spotify || "");
+  const embedUrl = SPOTIFY_embedUrl(song?.spotify || "");
+
+  if(status){
+    status.textContent = trackUrl
+      ? `Faixa vinculada: ${trackUrl}`
+      : "Nenhum link do Spotify vinculado.";
+  }
+
+  if(!embedUrl) return;
+
+  const iframe = document.createElement("iframe");
+  iframe.src = embedUrl;
+  iframe.width = "100%";
+  iframe.height = where === "stage" ? "152" : "152";
+  iframe.frameBorder = "0";
+  iframe.allowFullscreen = true;
+  iframe.allow = "autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture";
+  iframe.loading = "lazy";
+  iframe.style.borderRadius = "14px";
+
+  if(where === "stage"){
+    if(stageRoot) stageRoot.appendChild(iframe);
+  }else{
+    if(viewRoot) viewRoot.appendChild(iframe);
+  }
+}
+function SPOTIFY_openCurrent(){
+  const song = PLAYER_song();
+  if(!song) return;
+  const trackUrl = SPOTIFY_trackUrl(song.spotify);
+  if(!trackUrl){
+    alert("Esta música ainda não possui link/URI/ID do Spotify.");
+    return;
+  }
+  window.open(trackUrl, "_blank", "noopener,noreferrer");
+}
+
 /* ===== Player / Palco ===== */
 function PLAYER_song(){ return state.songs.find(s=>s.id===state.viewingId) || null; }
 
@@ -953,6 +1061,7 @@ function PLAYER_openStage(){
   document.getElementById("stageSongTitle").textContent = song.title || "GPS Musical";
   document.getElementById("stageSongSub").textContent =
     [song.artist, song.key?("Tom: "+song.key):""].filter(Boolean).join(" • ") || "—";
+  SPOTIFY_render(song, "stage");
   // áudio já foi carregado ao abrir a música; aqui só movemos o player para o palco
 PLAYER_renderStage(state.currentBlockIndex);
 }
@@ -1195,6 +1304,7 @@ async function BK_importJSON(ev){
     key: (s.key||"").toString(),
     tags: Array.isArray(s.tags)? s.tags.map(String): [],
     notes: (s.notes||"").toString(),
+    spotify: (s.spotify||"").toString(),
     audioMeta: null, // força re-vincular no dispositivo atual
     blocks: Array.isArray(s.blocks)? s.blocks.map(b=>({
       type:(b?.type||"Bloco").toString(),
@@ -1239,6 +1349,7 @@ function seedIfEmpty(){
     key: "G",
     tags: ["exemplo","gps"],
     notes: "Vincule um MP3 para marcar tempos com precisão.",
+    spotify: "",
     audioMeta: null,
     blocks: [
       { type:"Introdução", title:"", timeSec:0, chords:"G  D  Em  C", lyrics:"" },
