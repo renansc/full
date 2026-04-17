@@ -7,3 +7,4 @@ dados/*
 __pycache__/
 *.py[cod]
 .venv/
+instance/

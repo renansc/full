@@ -1413,6 +1413,9 @@ def save_tatoo_contract_pdf(payload: Any) -> dict[str, Any]:
 DATA_DIR = resolve_data_dir()
 ATTACHMENTS_DIR = resolve_attachment_dir()
 CONTRACTS_DIR = resolve_contracts_dir()
+GPS_CONFIG_PATH = DATA_DIR / "gpsmusical.config.json"
+GPS_BACKUP_DIR = DATA_DIR / "gpsmusical_backups"
+GPS_BACKUP_DIR.mkdir(parents=True, exist_ok=True)
 DATABASE_URL = build_database_url(DATA_DIR)
 DB_PROVIDER = detect_provider(DATABASE_URL)
 LEGACY_STORE_TABLE = assert_table_name(os.getenv("LEGACY_STORE_TABLE", "app_stores"))
@@ -1453,6 +1456,7 @@ class GpsSong(Base):
     notes: Mapped[str] = mapped_column(Text, nullable=False, default="")
     audio_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     audio_mime: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    audio_source: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[str] = mapped_column(String(32), nullable=False, default=now_iso)
     updated_at: Mapped[str] = mapped_column(String(32), nullable=False, default=now_iso)
 
@@ -1631,6 +1635,285 @@ engine = create_engine(DATABASE_URL, **engine_kwargs)
 SessionLocal = sessionmaker(bind=engine, expire_on_commit=False)
 Base.metadata.create_all(engine)
 LEGACY_TABLE_AVAILABLE = inspect(engine).has_table(LEGACY_STORE_TABLE)
+
+
+def default_gps_runtime_config() -> dict[str, Any]:
+    return {
+        "database": {
+            "provider": "default",
+            "url": "",
+            "host": "",
+            "port": "3306",
+            "name": "",
+            "user": "",
+            "password": "",
+            "ssl": False,
+        },
+        "youtube": {
+            "apiKey": "",
+            "clientId": "",
+            "redirectUri": "",
+        },
+        "spotify": {
+            "clientId": "",
+            "clientSecret": "",
+            "redirectUri": "",
+        },
+        "updatedAt": "",
+    }
+
+
+def normalize_gps_runtime_config(value: Any) -> dict[str, Any]:
+    payload = value if isinstance(value, dict) else {}
+    db = payload.get("database") if isinstance(payload.get("database"), dict) else {}
+    youtube = payload.get("youtube") if isinstance(payload.get("youtube"), dict) else {}
+    spotify = payload.get("spotify") if isinstance(payload.get("spotify"), dict) else {}
+
+    provider = as_text(db.get("provider"), "default").lower()
+    if provider not in {"default", "sqlite", "mysql", "postgres"}:
+        provider = "default"
+
+    port = as_text(db.get("port"), "3306" if provider == "mysql" else "5432")
+    if provider in {"default", "sqlite"}:
+        port = ""
+
+    return {
+        "database": {
+            "provider": provider,
+            "url": as_text(db.get("url")),
+            "host": as_text(db.get("host")),
+            "port": port,
+            "name": as_text(db.get("name")),
+            "user": as_text(db.get("user")),
+            "password": str(db.get("password") or ""),
+            "ssl": as_bool(db.get("ssl"), False),
+        },
+        "youtube": {
+            "apiKey": as_text(youtube.get("apiKey")),
+            "clientId": as_text(youtube.get("clientId")),
+            "redirectUri": as_text(youtube.get("redirectUri")),
+        },
+        "spotify": {
+            "clientId": as_text(spotify.get("clientId")),
+            "clientSecret": str(spotify.get("clientSecret") or ""),
+            "redirectUri": as_text(spotify.get("redirectUri")),
+        },
+        "updatedAt": as_text(payload.get("updatedAt")) or now_iso(),
+    }
+
+
+def load_gps_runtime_config() -> dict[str, Any]:
+    if not GPS_CONFIG_PATH.exists():
+        return default_gps_runtime_config()
+
+    try:
+        payload = json.loads(GPS_CONFIG_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return default_gps_runtime_config()
+
+    return normalize_gps_runtime_config(payload)
+
+
+def save_gps_runtime_config(value: Any) -> dict[str, Any]:
+    config = normalize_gps_runtime_config(value)
+    config["updatedAt"] = now_iso()
+    GPS_CONFIG_PATH.write_text(json.dumps(config, ensure_ascii=False, indent=2), encoding="utf-8")
+    return config
+
+
+def gps_database_config_enabled(config: dict[str, Any]) -> bool:
+    db = config.get("database") if isinstance(config.get("database"), dict) else {}
+    provider = as_text(db.get("provider"), "default").lower()
+    if provider == "default":
+        return False
+    if as_text(db.get("url")):
+        return True
+    if provider == "sqlite":
+        return bool(as_text(db.get("name")))
+    return bool(as_text(db.get("host")) and as_text(db.get("name")) and as_text(db.get("user")))
+
+
+def build_gps_database_url(config: dict[str, Any]) -> str:
+    db = config.get("database") if isinstance(config.get("database"), dict) else {}
+    explicit_url = normalize_database_url(as_text(db.get("url")))
+    if explicit_url:
+        return explicit_url
+
+    provider = as_text(db.get("provider"), "default").lower()
+    if provider == "default":
+        return DATABASE_URL
+
+    if provider == "sqlite":
+        sqlite_name = as_text(db.get("name"), "gpsmusical.db")
+        sqlite_path = resolve_sqlite_path(sqlite_name, DATA_DIR)
+        return f"sqlite:///{sqlite_path.as_posix()}"
+
+    host = as_text(db.get("host"))
+    database_name = as_text(db.get("name"))
+    username = as_text(db.get("user"))
+    password = str(db.get("password") or "")
+    port = as_text(db.get("port"))
+
+    if not host or not database_name or not username:
+        raise AppError(400, "Preencha host, banco e usuário para o banco remoto do GPS Musical.")
+
+    encoded_user = quote(username)
+    encoded_password = quote(password) if password else ""
+    credentials = encoded_user if not encoded_password else f"{encoded_user}:{encoded_password}"
+    host_part = f"{host}:{port}" if port else host
+
+    if provider == "mysql":
+        return f"mysql+pymysql://{credentials}@{host_part}/{quote(database_name)}"
+    if provider == "postgres":
+        return f"postgresql+psycopg://{credentials}@{host_part}/{quote(database_name)}"
+
+    raise AppError(400, "Provedor de banco do GPS Musical inválido.")
+
+
+def build_gps_engine_kwargs(database_url: str, config: dict[str, Any]) -> dict[str, Any]:
+    kwargs: dict[str, Any] = {"pool_pre_ping": True}
+    if database_url.startswith("sqlite"):
+        kwargs["connect_args"] = {"check_same_thread": False}
+        return kwargs
+
+    db = config.get("database") if isinstance(config.get("database"), dict) else {}
+    if detect_provider(database_url) == "postgres" and as_bool(db.get("ssl"), False):
+        kwargs["connect_args"] = {"sslmode": "require"}
+    elif detect_provider(database_url) == "mysql" and as_bool(db.get("ssl"), False):
+        kwargs["connect_args"] = {"ssl": {}}
+    return kwargs
+
+
+def ensure_gps_schema(target_engine) -> None:
+    Base.metadata.create_all(
+        target_engine,
+        tables=[
+            StoreMetadata.__table__,
+            GpsSong.__table__,
+            GpsSongTag.__table__,
+            GpsSongBlock.__table__,
+        ],
+    )
+
+    inspector = inspect(target_engine)
+    gps_song_columns = {column["name"] for column in inspector.get_columns("gps_songs")} if inspector.has_table("gps_songs") else set()
+    if "audio_source" in gps_song_columns:
+        return
+
+    with target_engine.begin() as connection:
+        connection.execute(text("ALTER TABLE gps_songs ADD COLUMN audio_source TEXT"))
+
+
+GPS_DB_RUNTIME: dict[str, Any] = {
+    "signature": None,
+    "database_url": "",
+    "label": "",
+    "session_factory": None,
+    "using_external": False,
+}
+
+
+def get_gps_session_factory(*, force_refresh: bool = False):
+    config = load_gps_runtime_config()
+    if not gps_database_config_enabled(config):
+        ensure_gps_schema(engine)
+        GPS_DB_RUNTIME.update(
+            {
+                "signature": "default",
+                "database_url": DATABASE_URL,
+                "label": database_label(DATABASE_URL),
+                "session_factory": SessionLocal,
+                "using_external": False,
+            }
+        )
+        return SessionLocal, config
+
+    database_url = build_gps_database_url(config)
+    signature = json.dumps(config.get("database", {}), sort_keys=True, ensure_ascii=True)
+
+    if (
+        not force_refresh
+        and GPS_DB_RUNTIME.get("signature") == signature
+        and GPS_DB_RUNTIME.get("session_factory") is not None
+    ):
+        return GPS_DB_RUNTIME["session_factory"], config
+
+    runtime_engine = create_engine(database_url, **build_gps_engine_kwargs(database_url, config))
+    ensure_gps_schema(runtime_engine)
+    session_factory = sessionmaker(bind=runtime_engine, expire_on_commit=False)
+    GPS_DB_RUNTIME.update(
+        {
+            "signature": signature,
+            "database_url": database_url,
+            "label": database_label(database_url),
+            "session_factory": session_factory,
+            "using_external": True,
+        }
+    )
+    return session_factory, config
+
+
+def gps_database_status(*, force_refresh: bool = False) -> dict[str, Any]:
+    try:
+        session_factory, config = get_gps_session_factory(force_refresh=force_refresh)
+        with session_factory() as session:
+            session.execute(text("SELECT 1"))
+        return {
+            "ok": True,
+            "usingExternal": bool(GPS_DB_RUNTIME.get("using_external")),
+            "database": GPS_DB_RUNTIME.get("label") or database_label(DATABASE_URL),
+            "provider": detect_provider(GPS_DB_RUNTIME.get("database_url") or DATABASE_URL),
+            "updatedAt": config.get("updatedAt") or "",
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "usingExternal": bool(gps_database_config_enabled(load_gps_runtime_config())),
+            "database": "",
+            "provider": "",
+            "updatedAt": "",
+            "error": str(exc),
+        }
+
+
+def create_gps_backup_payload(session, *, reason: str = "manual") -> dict[str, Any]:
+    return {
+        "app": "gps_musical",
+        "version": 6,
+        "reason": reason,
+        "exportedAt": now_iso(),
+        "songs": read_gps_store(session),
+    }
+
+
+def list_gps_backups() -> list[dict[str, Any]]:
+    backups: list[dict[str, Any]] = []
+    for file_path in sorted(GPS_BACKUP_DIR.glob("gps_musical_backup_*.json"), reverse=True):
+        try:
+            payload = json.loads(file_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        backups.append(
+            {
+                "id": file_path.stem,
+                "fileName": file_path.name,
+                "createdAt": as_text(payload.get("exportedAt")) or datetime.fromtimestamp(file_path.stat().st_mtime, timezone.utc).isoformat(),
+                "songs": len(payload.get("songs")) if isinstance(payload.get("songs"), list) else 0,
+                "sizeBytes": file_path.stat().st_size,
+            }
+        )
+    return backups
+
+
+ensure_gps_schema(engine)
+
+
+def session_factory_for_store(store_id: str):
+    safe_store_id = ensure_supported_store(store_id)
+    if safe_store_id == STORE_GPS:
+        session_factory, _ = get_gps_session_factory()
+        return session_factory
+    return SessionLocal
 
 
 def default_finance_config() -> dict[str, Any]:
@@ -1941,6 +2224,7 @@ def normalize_gps_songs(value: Any) -> list[dict[str, Any]]:
         tags = raw_song.get("tags") if isinstance(raw_song.get("tags"), list) else []
         blocks = raw_song.get("blocks") if isinstance(raw_song.get("blocks"), list) else []
         audio_meta = raw_song.get("audioMeta") if isinstance(raw_song.get("audioMeta"), dict) else None
+        audio_source = raw_song.get("audioSource") if isinstance(raw_song.get("audioSource"), dict) else None
         created_at = as_text(raw_song.get("createdAt")) or now_iso()
         updated_at = as_text(raw_song.get("updatedAt")) or created_at
 
@@ -1954,6 +2238,7 @@ def normalize_gps_songs(value: Any) -> list[dict[str, Any]]:
                 "notes": as_text(raw_song.get("notes")),
                 "audio_name": as_text(audio_meta.get("name")) if audio_meta else None,
                 "audio_mime": as_text(audio_meta.get("mime")) if audio_meta else None,
+                "audio_source": json.dumps(audio_source, ensure_ascii=True, separators=(",", ":")) if audio_source else None,
                 "created_at": created_at,
                 "updated_at": updated_at,
                 "tags": [as_text(tag) for tag in tags if as_text(tag)],
@@ -2206,6 +2491,14 @@ def read_gps_store(session) -> list[dict[str, Any]]:
         audio_meta = None
         if song.audio_name or song.audio_mime:
             audio_meta = {"name": song.audio_name or "", "mime": song.audio_mime or ""}
+        audio_source = None
+        if song.audio_source:
+            try:
+                parsed_audio_source = json.loads(song.audio_source)
+            except json.JSONDecodeError:
+                parsed_audio_source = None
+            if isinstance(parsed_audio_source, dict):
+                audio_source = parsed_audio_source
 
         payload.append(
             {
@@ -2216,6 +2509,7 @@ def read_gps_store(session) -> list[dict[str, Any]]:
                 "tags": tags_by_song.get(song.id, []),
                 "notes": song.notes,
                 "audioMeta": audio_meta,
+                "audioSource": audio_source,
                 "blocks": blocks_by_song.get(song.id, []),
                 "createdAt": song.created_at,
                 "updatedAt": song.updated_at,
@@ -2243,6 +2537,7 @@ def replace_gps_store(session, value: Any) -> str:
                 notes=song["notes"],
                 audio_name=song["audio_name"],
                 audio_mime=song["audio_mime"],
+                audio_source=song["audio_source"],
                 created_at=song["created_at"],
                 updated_at=song["updated_at"],
             )
@@ -3014,9 +3309,114 @@ def finance_purchase_research():
     return jsonify(run_finance_purchase_research(body))
 
 
+@app.get("/api/gps/config")
+def get_gps_config():
+    config = load_gps_runtime_config()
+    return jsonify({"config": config, "databaseStatus": gps_database_status()})
+
+
+@app.put("/api/gps/config")
+def put_gps_config():
+    body = request.get_json(silent=True) or {}
+    config = save_gps_runtime_config(body)
+    status = gps_database_status(force_refresh=True)
+    return jsonify({"ok": bool(status.get("ok")), "config": config, "databaseStatus": status})
+
+
+@app.post("/api/gps/config/test-database")
+def test_gps_config_database():
+    body = request.get_json(silent=True) or {}
+    config = normalize_gps_runtime_config(body)
+
+    try:
+        database_url = build_gps_database_url(config)
+        runtime_engine = create_engine(database_url, **build_gps_engine_kwargs(database_url, config))
+        ensure_gps_schema(runtime_engine)
+        with runtime_engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+        return jsonify(
+            {
+                "ok": True,
+                "database": database_label(database_url),
+                "provider": detect_provider(database_url),
+            }
+        )
+    except Exception as exc:
+        return jsonify({"ok": False, "error": str(exc)}), 400
+
+
+@app.get("/api/gps/backups")
+def get_gps_backups():
+    return jsonify({"items": list_gps_backups()})
+
+
+@app.post("/api/gps/backups")
+def create_gps_backup():
+    session_factory = session_factory_for_store(STORE_GPS)
+    with session_factory() as session:
+        payload = create_gps_backup_payload(session, reason="manual")
+
+    backup_id = f"gps_musical_backup_{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+    backup_path = GPS_BACKUP_DIR / f"{backup_id}.json"
+    backup_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    return jsonify(
+        {
+            "ok": True,
+            "backup": {
+                "id": backup_id,
+                "fileName": backup_path.name,
+                "createdAt": payload["exportedAt"],
+                "songs": len(payload["songs"]),
+                "sizeBytes": backup_path.stat().st_size,
+            },
+        }
+    )
+
+
+@app.post("/api/gps/backups/<backup_id>/restore")
+def restore_gps_backup(backup_id: str):
+    safe_backup_id = re.sub(r"[^a-zA-Z0-9_-]+", "", backup_id or "")
+    if not safe_backup_id:
+        return jsonify({"error": "Backup inválido."}), 400
+
+    backup_path = GPS_BACKUP_DIR / f"{safe_backup_id}.json"
+    if not backup_path.exists():
+        return jsonify({"error": "Backup não encontrado."}), 404
+
+    payload = json.loads(backup_path.read_text(encoding="utf-8"))
+    songs = payload.get("songs") if isinstance(payload.get("songs"), list) else []
+    session_factory = session_factory_for_store(STORE_GPS)
+    with session_factory() as session:
+        with session.begin():
+            updated_at = replace_gps_store(session, songs)
+
+    return jsonify({"ok": True, "updatedAt": updated_at, "songs": len(songs)})
+
+
+@app.get("/api/gps/backups/<backup_id>/download")
+def download_gps_backup(backup_id: str):
+    safe_backup_id = re.sub(r"[^a-zA-Z0-9_-]+", "", backup_id or "")
+    if not safe_backup_id:
+        return jsonify({"error": "Backup inválido."}), 400
+
+    backup_path = GPS_BACKUP_DIR / f"{safe_backup_id}.json"
+    if not backup_path.exists():
+        return jsonify({"error": "Backup não encontrado."}), 404
+
+    return send_from_directory(
+        backup_path.parent,
+        backup_path.name,
+        as_attachment=True,
+        download_name=backup_path.name,
+        mimetype="application/json",
+    )
+
+
 @app.get("/api/stores/<store_id>")
 def get_store(store_id: str):
-    with SessionLocal() as session:
+    session_factory = session_factory_for_store(store_id)
+    with session_factory() as session:
         value = get_store_value(session, store_id)
         updated_at = get_store_updated_at(session, ensure_supported_store(store_id))
 
@@ -3029,7 +3429,8 @@ def put_store(store_id: str):
     if not isinstance(body, dict) or "value" not in body:
         return jsonify({"error": "Missing 'value' in request body."}), 400
 
-    with SessionLocal() as session:
+    session_factory = session_factory_for_store(store_id)
+    with session_factory() as session:
         with session.begin():
             updated_at = put_store_value(session, store_id, body["value"])
 
@@ -3038,7 +3439,8 @@ def put_store(store_id: str):
 
 @app.delete("/api/stores/<store_id>")
 def delete_store(store_id: str):
-    with SessionLocal() as session:
+    session_factory = session_factory_for_store(store_id)
+    with session_factory() as session:
         with session.begin():
             delete_store_value(session, store_id)
 
