@@ -7,12 +7,14 @@ Repositorio preparado para deploy da FULL com rotas dedicadas:
 - `/financeiro/` -> financeiro
 - `/gpsmusical/` -> GPS Musical
 - `/zap/` -> Zap Workflow, servido dentro da propria Nanotech
+- `https://nanoponto.onrender.com/` -> NanoPonto, servido em deploy dedicado
 
 ## Estrutura
 
 - `app.py` serve os apps estaticos e as APIs usadas por Financeiro, GPS e BPA
 - `bpa/`, `financeiro/` e `gpsmusical/` possuem `index.html` para funcionar direto na URL da rota
 - `zap/` contem o sistema Flask de atendimento, vendas e prestacao de servicos que pode ser montado dentro da Nanotech
+- `NanoPonto/` contem o sistema Flask de registro de ponto, espelho, justificativas e atestados
 - `shared/remote-store.js` atende os modulos que usam sincronizacao remota
 - `menuapps.txt` documenta os links diretos e as rotas da FULL
 

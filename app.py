@@ -125,6 +125,12 @@ DEFAULT_SITE_APPS = [
         "descricao": "Atendimento, vendas e fluxo operacional do WhatsApp.",
         "href": "/zap/",
     },
+    {
+        "slug": "nanoponto",
+        "nome": "NanoPonto",
+        "descricao": "Registro de ponto, espelho, atestados e conformidade REP-P.",
+        "href": "https://nanoponto.onrender.com/",
+    },
 ]
 
 BPA_API_BASE_URL = str(os.getenv("BPA_API_BASE_URL", "http://127.0.0.1:5002")).strip().rstrip("/")
