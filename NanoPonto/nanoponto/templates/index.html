@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ app_name }}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body>
+  <main class="shell">
+    <section class="grid two" id="auth-grid">
+      <article class="panel accent">
+        <h2>Acesso</h2>
+        <form id="login-form" class="stack">
+          <label>
+            Perfil
+            <select name="role" id="login-role">
+              <option value="employee">Usuario</option>
+              <option value="admin">Admin</option>
+            </select>
+          </label>
+          <label id="login-username-label">CPF do usuario
+            <input type="text" name="username" id="login-username" placeholder="Somente numeros" required>
+          </label>
+          <label id="login-password-label">Senha do usuario
+            <input type="password" name="password" id="login-password" placeholder="Senha cadastrada ou CPF inicial" required>
+          </label>
+          <div class="actions">
+            <button type="submit">Entrar</button>
+            <button type="button" id="forgot-password-toggle" class="secondary-button">Esqueceu a senha?</button>
+          </div>
+        </form>
+        <p class="notice" id="login-result">Entre como admin ou usuario.</p>
+        <div class="subpanel hidden" id="password-recovery-panel">
+          <h3>Recuperar senha</h3>
+          <form id="password-recovery-request-form" class="stack compact">
+            <label>CPF do usuario
+              <input type="text" name="cpf" id="password-recovery-cpf" placeholder="Somente numeros" required>
+            </label>
+            <button type="submit">Enviar codigo por e-mail</button>
+          </form>
+          <form id="password-recovery-confirm-form" class="stack compact">
+            <label>CPF do usuario
+              <input type="text" name="cpf" id="password-recovery-confirm-cpf" placeholder="Repita o CPF" required>
+            </label>
+            <label>Codigo de recuperacao
+              <input type="text" name="code" id="password-recovery-code" placeholder="Codigo recebido no e-mail" required>
+            </label>
+            <label>Nova senha
+              <input type="password" name="new_password" id="password-recovery-new-password" placeholder="Minimo de 6 caracteres" required>
+            </label>
+            <button type="submit">Redefinir senha</button>
+          </form>
+          <p class="notice" id="password-recovery-result">Se o funcionario tiver e-mail cadastrado, o codigo sera enviado para recuperacao.</p>
+          <button type="button" id="close-password-recovery" class="secondary-button">Fechar</button>
+        </div>
+      </article>
+
+      <article class="panel">
+        <h2>Regras de acesso</h2>
+        <div class="list">
+          <div class="list-item">
+            <strong>Admin</strong>
+            <small>Usuario fixo `admin` e senha igual ao CNPJ da empresa, somente numeros.</small>
+          </div>
+          <div class="list-item">
+            <strong>Usuario</strong>
+            <small>Login com CPF e senha cadastrada. No primeiro acesso, a senha inicial continua sendo o proprio CPF, e depois pode ser redefinida com codigo enviado ao e-mail cadastrado.</small>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="hidden" id="app-shell">
+      <div class="hero-topbar">
+        <div class="session-chip">
+          <span class="metric-label">Sessao</span>
+          <strong id="session-user">carregando...</strong>
+        </div>
+        <button type="button" id="logout-button" class="secondary-button">Sair</button>
+      </div>
+    <nav class="admin-menu hidden" id="admin-menu" data-admin-only>
+      <button type="button" data-admin-menu-item="punch-card">Marcar ponto</button>
+      <button type="button" data-admin-menu-item="justify-card">Justificar ponto</button>
+      <button type="button" data-admin-menu-item="export-card">Exportacao fiscal</button>
+      <button type="button" data-admin-menu-item="recent-punches-card">Ultimas batidas</button>
+      <button type="button" data-admin-menu-item="bank-card">Banco de horas</button>
+      <button type="button" data-admin-menu-item="hours-report-card">Espelho de ponto</button>
+      <button type="button" data-admin-menu-item="medical-certificate-card">Atestados</button>
+      <button type="button" data-admin-menu-item="settings-card">Configuracao legal</button>
+      <button type="button" data-admin-menu-item="employee-card">Funcionarios</button>
+      <button type="button" data-admin-menu-item="calendar-card">Calendario RH</button>
+      <button type="button" data-admin-menu-item="compliance-card">Conformidade</button>
+      <button type="button" data-admin-menu-item="email-card">E-mail</button>
+      <button type="button" data-admin-menu-item="agenda-card">Agenda RH</button>
+    </nav>
+    <section class="hero">
+      <div>
+        <p class="eyebrow">REP-P pronto para homologacao</p>
+        <h1>NanoPonto</h1>
+        <p class="hero-copy">
+          Registro de ponto com hora oficial do Observatorio Nacional, hash por batida, AFD para fiscalizacao
+          e modulo RH para banco de horas, feriados e ferias.
+        </p>
+      </div>
+      <div class="hero-card">
+        <div class="metric">
+          <span class="metric-label">Status do servico</span>
+          <strong id="service-status">carregando...</strong>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Aplicacao</span>
+          <strong id="app-name">{{ app_name }}</strong>
+        </div>
+        <div class="metric">
+          <span class="metric-label">Base legal</span>
+          <strong>Portaria 671/2021</strong>
+        </div>
+      </div>
+    </section>
+
+    <section class="grid two" data-admin-panel-group>
+      <article class="panel accent" data-admin-panel="punch-card">
+        <h2>Marcar Ponto</h2>
+        <form id="punch-form" class="stack">
+          <label data-admin-only>
+            Funcionario
+            <select name="employee_id" id="punch-employee"></select>
+          </label>
+          <label data-admin-only>
+            RFID opcional
+            <input type="text" name="badge_id" placeholder="Passe o RFID se preferir">
+          </label>
+          <label>
+            Coletor
+            <select name="collector_code">
+              <option value="01">Aplicativo mobile</option>
+              <option value="02">Browser</option>
+              <option value="04">Dispositivo eletronico / RFID</option>
+              <option value="05">Outro dispositivo</option>
+            </select>
+          </label>
+          <button type="submit">Registrar batida</button>
+        </form>
+        <p class="notice" id="punch-result">Aguardando marcacao.</p>
+      </article>
+
+      <article class="panel" data-admin-panel="justify-card">
+        <h2>Justificar Ponto</h2>
+        <div class="actions">
+          <button type="button" id="preset-justification-esquecimento">Esquecimento</button>
+          <button type="button" id="preset-justification-fora-horario" class="secondary-button">Fora do horario</button>
+        </div>
+        <form id="justification-form" class="stack compact" enctype="multipart/form-data">
+          <label data-admin-only>Funcionario<select name="employee_id" id="justification-employee"></select></label>
+          <label>Data inicial da ocorrencia<input type="date" name="reference_date" required></label>
+          <label>Tipo da justificativa
+            <select name="occurrence_type" id="justification-occurrence-type">
+              <option value="esquecimento">Esquecimento de ponto</option>
+              <option value="fora_horario">Ponto fora do horario</option>
+              <option value="problema_tecnico">Problema tecnico</option>
+              <option value="ajuste_manual">Ajuste manual</option>
+              <option value="outro">Outro motivo</option>
+            </select>
+          </label>
+          <label>Horario informado<input type="text" name="informed_time" id="justification-informed-time" placeholder="Ex.: 08:00 / 18:00"></label>
+          <label>Motivo resumido<input type="text" name="reason" id="justification-reason" required></label>
+          <label>Descricao detalhada<textarea name="details" rows="4" id="justification-details" placeholder="Descreva o ocorrido para emissao do relatorio."></textarea></label>
+          <button type="submit">Registrar justificativa</button>
+        </form>
+        <p class="notice" id="justification-result">Use esta area para justificar esquecimento de batida ou marcacao fora do horario.</p>
+      </article>
+
+      <article class="panel" data-admin-panel="medical-certificate-card">
+        <h2>Lancar Atestado</h2>
+        <form id="medical-certificate-form" class="stack compact" enctype="multipart/form-data">
+          <label data-admin-only>Funcionario<select name="employee_id" id="medical-certificate-employee"></select></label>
+          <label>Data inicial<input type="date" name="reference_date" required></label>
+          <label>Data final<input type="date" name="end_date" required></label>
+          <label>Motivo resumido<input type="text" name="reason" value="Atestado medico" required></label>
+          <label>Observacoes<textarea name="details" rows="3" placeholder="Informe observacoes do atestado, se necessario."></textarea></label>
+          <label>Arquivo do atestado<input type="file" name="attachment" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" required></label>
+          <button type="submit">Registrar atestado</button>
+        </form>
+        <p class="notice" id="medical-certificate-result">Lance aqui atestados que cobrem um ou mais dias.</p>
+      </article>
+
+      <article class="panel" data-admin-only data-admin-panel="export-card">
+        <h2>Exportacao Fiscal</h2>
+        <form id="afd-form" class="stack compact">
+          <label>
+            Inicio
+            <input type="date" name="start">
+          </label>
+          <label>
+            Fim
+            <input type="date" name="end">
+          </label>
+          <div class="actions">
+            <button type="button" id="download-afd">Baixar AFD</button>
+            <button type="button" id="download-fiscal">Pacote fiscalizacao</button>
+          </div>
+        </form>
+        <div class="panel-note">
+          O AFD sai em `ISO-8859-1`, com leiaute `003`, trailer e marcador para assinatura destacada `.p7s`.
+        </div>
+      </article>
+    </section>
+
+    <section class="grid two" data-admin-panel-group>
+      <article class="panel" data-admin-panel="recent-punches-card">
+        <h2 id="recent-punches-title">Ultimas Batidas</h2>
+        <div id="recent-punches" class="list"></div>
+      </article>
+
+      <article class="panel" data-admin-only data-admin-panel="bank-card">
+        <h2>Banco de Horas</h2>
+        <div id="bank-summaries" class="list"></div>
+      </article>
+    </section>
+
+    <section class="panel" data-admin-panel="hours-report-card" data-admin-panel-group>
+      <h2 id="hours-report-title">Espelho de Ponto</h2>
+      <form id="rh-report-form" class="stack compact">
+        <div class="grid two form-grid">
+          <label data-admin-only>Funcionario<select name="employee_id" id="rh-report-employee"></select></label>
+          <label>Data inicial<input type="date" name="start" id="rh-report-start"></label>
+        </div>
+        <div class="grid two form-grid">
+          <label>Data final<input type="date" name="end" id="rh-report-end"></label>
+          <div class="actions align-end">
+            <button type="submit">Carregar tabela</button>
+            <button type="button" id="download-hours-report">Gerar documento para assinatura</button>
+          </div>
+        </div>
+      </form>
+      <p class="notice" id="rh-report-summary">Selecione um funcionario para visualizar as batidas consolidadas do periodo.</p>
+      <div class="table-shell">
+        <table class="report-table">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Dia</th>
+              <th>Batidas</th>
+              <th>Nao lancadas</th>
+              <th>Previsto</th>
+              <th>Trabalhado</th>
+              <th>Ajuste</th>
+              <th>Saldo</th>
+              <th>Observacoes</th>
+              <th>Acao</th>
+            </tr>
+          </thead>
+          <tbody id="rh-report-table-body">
+            <tr>
+              <td colspan="10">Nenhum relatorio carregado.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="grid three" data-admin-only data-admin-panel-group>
+      <article class="panel" data-admin-panel="settings-card">
+        <h2>Configuracao Legal</h2>
+        <form id="settings-form" class="stack compact">
+          <label>Razao social<input type="text" name="employer_name" required></label>
+          <label>CNPJ/CPF<input type="text" name="employer_document" required></label>
+          <label>Tipo do documento
+            <select name="employer_document_type">
+              <option value="1">CNPJ</option>
+              <option value="2">CPF</option>
+            </select>
+          </label>
+          <label>CNO / CAEPF<input type="text" name="cno_caepf"></label>
+          <label>Local da prestacao<input type="text" name="workplace"></label>
+          <label>Registro INPI REP-P<input type="text" name="developer_inpi"></label>
+          <label>Responsavel tecnico<input type="text" name="technical_responsible_name"></label>
+          <label>CPF responsavel tecnico<input type="text" name="technical_responsible_cpf"></label>
+          <button type="submit">Salvar configuracao</button>
+        </form>
+      </article>
+
+      <article class="panel" data-admin-panel="employee-card">
+        <h2>Cadastro de Funcionario</h2>
+        <form id="employee-form" class="stack compact">
+          <input type="hidden" name="id">
+          <label>Codigo<input type="text" name="employee_code" required></label>
+          <label>Nome<input type="text" name="full_name" required></label>
+          <label>CPF<input type="text" name="cpf" required></label>
+          <label>RFID<input type="text" name="badge_id"></label>
+          <label>E-mail<input type="email" name="email"></label>
+          <label>Setor<input type="text" name="department"></label>
+          <label>Admissao<input type="date" name="admission_date" required></label>
+          <label>Minutos diarios<input type="number" name="daily_minutes" value="480"></label>
+          <div class="actions">
+            <button type="submit">Salvar funcionario</button>
+            <button type="button" id="employee-form-reset" class="secondary-button">Novo cadastro</button>
+          </div>
+        </form>
+        <div class="subpanel">
+          <h3>Funcionarios cadastrados</h3>
+          <div id="employees-list" class="list small"></div>
+        </div>
+      </article>
+
+      <article class="panel" data-admin-panel="calendar-card">
+        <h2>Calendario RH</h2>
+        <div class="grid three calendar-grid">
+          <div class="subpanel card-block">
+            <h3>Feriados</h3>
+            <form id="holiday-form" class="stack compact">
+              <label>Feriado<input type="date" name="holiday_date" required></label>
+              <label>Descricao<input type="text" name="name" required></label>
+              <button type="submit">Adicionar feriado</button>
+            </form>
+          </div>
+          <div class="subpanel card-block">
+            <h3>Ferias e afastamentos</h3>
+            <form id="leave-form" class="stack compact">
+              <label>Funcionario<select name="employee_id" id="leave-employee"></select></label>
+              <label>Tipo
+                <select name="leave_type">
+                  <option value="ferias">Ferias</option>
+                  <option value="licenca">Licenca</option>
+                  <option value="afastamento">Afastamento</option>
+                </select>
+              </label>
+              <label>Inicio<input type="date" name="start_date" required></label>
+              <label>Fim<input type="date" name="end_date" required></label>
+              <button type="submit">Lancar afastamento</button>
+            </form>
+          </div>
+          <div class="subpanel card-block">
+            <h3>Ajustes de banco</h3>
+            <form id="adjustment-form" class="stack compact">
+              <label>Funcionario<select name="employee_id" id="adjustment-employee"></select></label>
+              <label>Data<input type="date" name="reference_date" required></label>
+              <label>Minutos +/-<input type="number" name="minutes_delta" required></label>
+              <label>Motivo<input type="text" name="reason" required></label>
+              <button type="submit">Ajustar banco</button>
+            </form>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="grid two" data-admin-only data-admin-panel-group>
+      <article class="panel" data-admin-panel="compliance-card">
+        <h2>Conformidade</h2>
+        <div id="compliance-list" class="list"></div>
+      </article>
+
+      <article class="panel" data-admin-panel="email-card">
+        <h2>Integração de e-mail</h2>
+        <div class="stack compact">
+          <div class="metric">
+            <span class="metric-label">Status</span>
+            <strong id="email-integration-status">carregando...</strong>
+          </div>
+          <div class="metric">
+            <span class="metric-label">Ultimo envio</span>
+            <strong id="email-integration-last">sem registros</strong>
+          </div>
+        </div>
+        <form id="email-test-form" class="stack compact">
+          <label>Destinatario de teste<input type="email" name="recipient" id="email-test-recipient" placeholder="email@dominio.com"></label>
+          <button type="submit">Testar envio</button>
+        </form>
+        <div id="email-dispatches" class="list small"></div>
+      </article>
+
+      <article class="panel" data-admin-panel="agenda-card">
+        <h2>Agenda de RH</h2>
+        <div class="subpanel">
+          <h3>Feriados</h3>
+          <div id="holidays-list" class="list small"></div>
+        </div>
+        <div class="subpanel">
+          <h3>Ferias e afastamentos</h3>
+          <div id="leaves-list" class="list small"></div>
+        </div>
+        <div class="subpanel">
+          <h3>Ajustes</h3>
+          <div id="adjustments-list" class="list small"></div>
+        </div>
+        <div class="subpanel">
+          <h3>Justificativas</h3>
+          <div id="justifications-list" class="list small"></div>
+        </div>
+      </article>
+    </section>
+    </section>
+  </main>
+  <script src="{{ url_for('static', filename='js/app.js', v='20260426-atestado-upload') }}" defer></script>
+</body>
+</html>

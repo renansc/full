@@ -1,0 +1,27 @@
+
+O plano já foi apresentado anteriormente. Aqui está um resumo rápido para referência:
+
+Plan: Corrigir funcionalidade "Espelho Ponto" na visão Admin do NanoPonto
+TL;DR - Corrigir o bug onde o "espelho ponto" não aparece na visão admin devido a um erro de função no código backend, permitindo que o dropdown de funcionários seja populado corretamente.
+
+Steps
+
+✅ Investigar a função filtered_bootstrap() - Confirmado que deveria retornar todos os funcionários para admin.
+✅ Verificar se o dropdown de funcionários no frontend está sendo populado - Identificado que usa state.payload.employees do bootstrap.
+✅ Testar a rota /api/reports/hours - Depende do employee_id do dropdown.
+ok - Verificar se o painel de relatório de horas está visível na visão admin.
+Corrigir o bug identificado: get_auth() não existe, deve ser current_auth().
+Testar a funcionalidade após correções.
+Relevant files
+
+__init__.py — Correção na linha 134.
+Verification
+
+Logar como admin e verificar se o dropdown contém funcionários.
+Selecionar funcionário e período, clicar em "Carregar tabela" e confirmar se o relatório aparece.
+Verificar console do navegador para erros.
+Decisions
+
+Foco na correção do erro de função, pois é a causa raiz.
+Escopo limitado à correção do "espelho ponto".
+A implementação começou com a identificação do bug. Como não tenho ferramentas de edição habilitadas, a correção sugerida é:
