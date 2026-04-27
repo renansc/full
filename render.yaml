@@ -4,7 +4,7 @@ services:
     runtime: python
     plan: starter
     buildCommand: apt-get update && apt-get install -y libzbar0 && pip install -r requirements.txt
-    startCommand: gunicorn app:app
+    startCommand: bash scripts/init_and_start.sh
     healthCheckPath: /api/health
     envVars:
       - key: FLASK_SECRET_KEY
