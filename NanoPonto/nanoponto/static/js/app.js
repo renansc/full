@@ -5,8 +5,20 @@ const state = {
   activeAdminPanel: "punch-card",
 };
 
+const APP_BASE_PATH = window.location.pathname.startsWith("/nanoponto") ? "/nanoponto" : "";
+
 function qs(selector) {
   return document.querySelector(selector);
+}
+
+function appUrl(url) {
+  if (typeof url !== "string" || !url.startsWith("/")) {
+    return url;
+  }
+  if (APP_BASE_PATH && url.startsWith(`${APP_BASE_PATH}/`)) {
+    return url;
+  }
+  return `${APP_BASE_PATH}${url}`;
 }
 
 function createItem(title, subtitle, actions = []) {
@@ -36,7 +48,7 @@ function button(label, onClick) {
 
 function link(label, href) {
   const element = document.createElement("a");
-  element.href = href;
+  element.href = appUrl(href);
   element.textContent = label;
   element.target = "_blank";
   return element;
@@ -50,7 +62,7 @@ function localDateIso(date = new Date()) {
 }
 
 async function requestJson(url, options = {}) {
-  const response = await fetch(url, {
+  const response = await fetch(appUrl(url), {
     headers: { "Content-Type": "application/json" },
     ...options,
   });
@@ -62,7 +74,7 @@ async function requestJson(url, options = {}) {
 }
 
 async function requestForm(url, formData) {
-  const response = await fetch(url, {
+  const response = await fetch(appUrl(url), {
     method: "POST",
     body: formData,
   });
@@ -804,7 +816,7 @@ async function bindForms() {
         return;
       }
       const params = new URLSearchParams(payload);
-      window.open(`/api/reports/hours.pdf?${params.toString()}`, "_blank");
+      window.open(appUrl(`/api/reports/hours.pdf?${params.toString()}`), "_blank");
     });
   }
 
@@ -812,7 +824,7 @@ async function bindForms() {
   if (downloadAfdButton) {
     downloadAfdButton.addEventListener("click", () => {
       const params = new URLSearchParams(asPayload(qs("#afd-form")));
-      window.open(`/api/afd.txt?${params.toString()}`, "_blank");
+      window.open(appUrl(`/api/afd.txt?${params.toString()}`), "_blank");
     });
   }
 
@@ -820,7 +832,7 @@ async function bindForms() {
   if (downloadFiscalButton) {
     downloadFiscalButton.addEventListener("click", () => {
       const params = new URLSearchParams(asPayload(qs("#afd-form")));
-      window.open(`/api/fiscalizacao.zip?${params.toString()}`, "_blank");
+      window.open(appUrl(`/api/fiscalizacao.zip?${params.toString()}`), "_blank");
     });
   }
 }
