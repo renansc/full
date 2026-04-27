@@ -10,6 +10,7 @@ import re
 import secrets
 import smtplib
 import ssl
+import sys
 import textwrap
 import unicodedata
 import urllib.error
@@ -2962,6 +2963,18 @@ except Exception as exc:  # pragma: no cover - optional embedded app
 else:
     zap_app = create_zap_app()
     app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {"/zap": zap_app})
+
+nanoponto_dir = BASE_DIR / "NanoPonto"
+if nanoponto_dir.exists():
+    sys.path.insert(0, str(nanoponto_dir))
+    try:
+        from nanoponto import create_app as create_nanoponto_app
+    except Exception as exc:  # pragma: no cover - optional embedded app
+        create_nanoponto_app = None
+        app.logger.warning("NanoPonto app not mounted: %s", exc)
+    else:
+        nanoponto_app = create_nanoponto_app()
+        app.wsgi_app = DispatcherMiddleware(app.wsgi_app, {"/nanoponto": nanoponto_app})
 
 max_body_size = parse_size(os.getenv("MAX_BODY_SIZE", "25mb"))
 if max_body_size is not None:
