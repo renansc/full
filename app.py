@@ -120,16 +120,16 @@ DEFAULT_SITE_APPS = [
         "href": "/tatoo/",
     },
     {
+        "slug": "nanoponto",
+        "nome": "Nanoponto",
+        "descricao": "Ponto eletrônico / Controle de presença",
+        "href": "/nanoponto/",
+    },
+    {
         "slug": "zap",
         "nome": "Zap Workflow",
         "descricao": "Atendimento, vendas e fluxo operacional do WhatsApp.",
         "href": "/zap/",
-    },
-    {
-        "slug": "nanoponto",
-        "nome": "NanoPonto",
-        "descricao": "Registro de ponto, espelho, atestados e conformidade REP-P.",
-        "href": "https://nanoponto.onrender.com/",
     },
 ]
 
