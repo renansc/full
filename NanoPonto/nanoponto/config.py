@@ -14,19 +14,19 @@ DEFAULT_DATABASE_PATH = (WINDOWS_DATA_DIR if os.name == "nt" else DATA_DIR) / "n
 
 
 def resolve_database_url() -> str:
-    configured_url = os.getenv("DATABASE_URL")
+    configured_url = os.getenv("NANOPONTO_DATABASE_URL") or os.getenv("DATABASE_URL")
     if configured_url:
         return configured_url
 
-    mysql_host = os.getenv("MYSQL_HOST", "").strip()
+    mysql_host = os.getenv("NANOPONTO_MYSQL_HOST") or os.getenv("MYSQL_HOST", "").strip()
     if mysql_host:
         return URL.create(
             drivername="mysql+pymysql",
-            username=os.getenv("MYSQL_USER", "nanoponto"),
-            password=os.getenv("MYSQL_PASSWORD", "nanoponto"),
+            username=os.getenv("NANOPONTO_MYSQL_USER") or os.getenv("MYSQL_USER", "nanoponto"),
+            password=os.getenv("NANOPONTO_MYSQL_PASSWORD") or os.getenv("MYSQL_PASSWORD", "nanoponto"),
             host=mysql_host,
-            port=int(os.getenv("MYSQL_PORT", "3306")),
-            database=os.getenv("MYSQL_DATABASE", "nanoponto"),
+            port=int(os.getenv("NANOPONTO_MYSQL_PORT") or os.getenv("MYSQL_PORT", "3306")),
+            database=os.getenv("NANOPONTO_MYSQL_DATABASE") or os.getenv("MYSQL_DATABASE", "nanoponto"),
             query={"charset": "utf8mb4"},
         ).render_as_string(hide_password=False)
 
