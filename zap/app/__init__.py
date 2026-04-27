@@ -1,11 +1,15 @@
 from pathlib import Path
 
 import click
+import os
+import secrets
 from dotenv import load_dotenv
 from flask import Flask, current_app, jsonify, request
 from flask.cli import with_appcontext
 from flask_login import LoginManager
 from sqlalchemy import inspect, text
+from sqlalchemy.exc import IntegrityError
+from werkzeug.security import generate_password_hash
 from werkzeug.exceptions import HTTPException
 
 from .config import get_config
@@ -65,18 +69,75 @@ def _set_default_row(rows, target_row):
         row.is_default = row.id == target_row.id
 
 
-def seed_defaults():
-    if not User.query.first():
-        from werkzeug.security import generate_password_hash
+def _mask_secret(secret: str) -> str:
+    if not secret:
+        return ""
+    if len(secret) <= 8:
+        return "*" * len(secret)
+    return f"{secret[:4]}...{secret[-4:]}"
 
-        db.session.add(
-            User(
-                name=current_app.config.get("BOOTSTRAP_ADMIN_NAME", "Administrador"),
-                email=current_app.config.get("BOOTSTRAP_ADMIN_EMAIL", "admin@empresa.com"),
-                password_hash=generate_password_hash(current_app.config.get("BOOTSTRAP_ADMIN_PASSWORD", "admin123")),
-                role="admin",
-            )
-        )
+
+def seed_defaults():
+    try:
+        User.query.first()
+    except Exception:
+        current_app.logger.exception("Falha ao verificar usuarios durante seed_defaults()")
+        return
+
+    admin_exists = False
+    try:
+        admin_exists = User.query.filter_by(role="admin").first() is not None
+    except Exception:
+        current_app.logger.exception("Erro ao verificar admin existente.")
+
+    cfg_name = current_app.config.get("BOOTSTRAP_ADMIN_NAME") or os.getenv("BOOTSTRAP_ADMIN_NAME", "Administrador")
+    cfg_email = current_app.config.get("BOOTSTRAP_ADMIN_EMAIL") or os.getenv("BOOTSTRAP_ADMIN_EMAIL", "admin@empresa.com")
+    cfg_password = current_app.config.get("BOOTSTRAP_ADMIN_PASSWORD") or os.getenv("BOOTSTRAP_ADMIN_PASSWORD", "")
+    force_create = str(os.getenv("BOOTSTRAP_ADMIN_FORCE_CREATE", "false")).lower() in {"1", "true", "yes", "on"}
+
+    if not admin_exists or force_create:
+        generated_password = None
+        if not cfg_password:
+            generated_password = secrets.token_urlsafe(16)
+            cfg_password = generated_password
+            try:
+                inst_dir = Path(current_app.instance_path)
+                inst_dir.mkdir(parents=True, exist_ok=True)
+                secret_file = inst_dir / "bootstrap_admin_password.txt"
+                secret_file.write_text(cfg_password, encoding="utf-8")
+                try:
+                    secret_file.chmod(0o600)
+                except Exception:
+                    pass
+                current_app.logger.warning(
+                    "BOOTSTRAP_ADMIN_PASSWORD nao fornecida; foi gerada uma senha temporaria e salva em %s (apague apos uso).",
+                    secret_file,
+                )
+            except Exception:
+                current_app.logger.exception("Falha ao salvar senha gerada no instance/; a senha foi gerada em memoria only.")
+
+        try:
+            with db.session.begin_nested():
+                existing_by_email = User.query.filter(db.func.lower(User.email) == cfg_email.strip().lower()).first()
+                if existing_by_email:
+                    if existing_by_email.role != "admin":
+                        existing_by_email.role = "admin"
+                        db.session.add(existing_by_email)
+                else:
+                    db.session.add(
+                        User(
+                            name=cfg_name,
+                            email=cfg_email.strip().lower(),
+                            password_hash=generate_password_hash(cfg_password),
+                            role="admin",
+                        )
+                    )
+        except IntegrityError:
+            db.session.rollback()
+            current_app.logger.info("Admin ja criado por outro processo (integrity error).")
+        except Exception:
+            db.session.rollback()
+            current_app.logger.exception("Falha ao criar admin durante seed_defaults().")
 
     departments = Department.query.order_by(Department.id.asc()).all()
     if not departments:
