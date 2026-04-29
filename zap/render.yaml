@@ -12,11 +12,43 @@ services:
         value: production
       - key: PYTHON_VERSION
         value: 3.11.9
+      - key: SECRET_KEY
+        generateValue: true
       - key: SESSION_COOKIE_NAME
         value: zap_session
+      - key: ZAP_DATABASE_URL
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: UPLOAD_FOLDER
+        value: instance/uploads
+      - key: PUBLIC_BASE_URL
+        sync: false
+      - key: BACKUP_DATABASE_URL
+        sync: false
+      - key: TICKET_ARCHIVE_DAYS
+        value: "2"
+      - key: WHATSAPP_TOKEN
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_VERIFY_TOKEN
+        sync: false
+      - key: WHATSAPP_API_VERSION
+        value: v20.0
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        sync: false
+      - key: GOOGLE_CALENDAR_ID
+        value: primary
       - key: BOOTSTRAP_ADMIN_NAME
         value: Administrador
       - key: BOOTSTRAP_ADMIN_EMAIL
         value: solucoestecnologicasrenan@gmail.com
       - key: BOOTSTRAP_ADMIN_PASSWORD
         value: Luis@2024
+      - key: BOOTSTRAP_ADMIN_FORCE_CREATE
+        value: "false"

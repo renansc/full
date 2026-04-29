@@ -15,18 +15,20 @@ services:
         value: America/Sao_Paulo
       - key: ALLOW_SYSTEM_TIME_FALLBACK
         value: "1"
-      - key: NANOPONTO_DATABASE_URL
-        sync: false
-      - key: NANOPONTO_MYSQL_HOST
-        sync: false
-      - key: NANOPONTO_MYSQL_PORT
+      - key: DATABASE_URL
+        value: ""
+      - key: MYSQL_HOST
+        value: 185.31.41.41
+      - key: MYSQL_PORT
         value: "3306"
-      - key: NANOPONTO_MYSQL_DATABASE
-        sync: false
-      - key: NANOPONTO_MYSQL_USER
-        sync: false
-      - key: NANOPONTO_MYSQL_PASSWORD
-        sync: false
+      - key: MYSQL_DATABASE
+        value: renansc_ponto
+      - key: MYSQL_USER
+        value: nanoponto
+      - key: MYSQL_PASSWORD
+        value: nanoponto
+      - key: MYSQL_ROOT_PASSWORD
+        value: Luis@2024
       - key: SMTP_HOST
         value: smtp.gmail.com
       - key: SMTP_PORT
@@ -45,3 +47,15 @@ services:
         value: Renan Santos Coutinho
       - key: DEFAULT_EMPLOYEE_CPF
         value: "06587583903"
+      - key: DEFAULT_EMPLOYEE_CODE
+        value: E001
+      - key: DEFAULT_EMPLOYEE_BADGE_ID
+        value: ""
+      - key: WEB_CONCURRENCY
+        value: "2"
+      - key: GUNICORN_THREADS
+        value: "4"
+      - key: GUNICORN_TIMEOUT
+        value: "120"
+      - key: GUNICORN_GRACEFUL_TIMEOUT
+        value: "30"
