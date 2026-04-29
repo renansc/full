@@ -14,3 +14,9 @@ services:
         value: 3.11.9
       - key: SESSION_COOKIE_NAME
         value: zap_session
+      - key: BOOTSTRAP_ADMIN_NAME
+        value: Administrador
+      - key: BOOTSTRAP_ADMIN_EMAIL
+        value: solucoestecnologicasrenan@gmail.com
+      - key: BOOTSTRAP_ADMIN_PASSWORD
+        value: Luis@2024
