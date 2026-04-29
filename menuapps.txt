@@ -9,4 +9,4 @@ financeiro	srv/financeiro		renanrocks2009@gmail.com			https://nanotech-lvoz.onre
 gpsmusical	srv/gpsmusical		renanrocks2009@gmail.com			https://nanotech-lvoz.onrender.com/gpsmusical
 tatoo		srv/tatoo		renanrocks2009@gmail.com			https://nanotech-lvoz.onrender.com/tatoo
 zap		srv/zap			renanrocks2009@gmail.com			https://nanotech-lvoz.onrender.com/zap/
-NanoPonto	srv/NanoPonto		renanrocks2009@gmail.com			https://nanoponto.onrender.com/
+NanoPonto	srv/NanoPonto		renanrocks2009@gmail.com			https://nanotech-lvoz.onrender.com/nanoponto

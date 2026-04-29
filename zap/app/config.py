@@ -1,11 +1,52 @@
 import os
 
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError
+
+
+def normalize_database_url(value, *, env_name="DATABASE_URL"):
+    if not value:
+        return "sqlite:///zap.db"
+
+    normalized = value.strip()
+    if not normalized or normalized.lower() in {"false", "none", "null"}:
+        return "sqlite:///zap.db"
+
+    replacements = {
+        "postgres://": "postgresql+psycopg2://",
+        "postgresql://": "postgresql+psycopg2://",
+        "mysql://": "mysql+pymysql://",
+        "mariadb://": "mysql+pymysql://",
+    }
+
+    for prefix, replacement in replacements.items():
+        if normalized.startswith(prefix):
+            normalized = normalized.replace(prefix, replacement, 1)
+            break
+
+    try:
+        make_url(normalized)
+    except ArgumentError as exc:
+        raise RuntimeError(
+            f"{env_name} invalida para o Zap. Use uma URL completa, por exemplo "
+            "'postgresql://usuario:senha@host:5432/banco', ou deixe a variavel vazia "
+            "para usar SQLite."
+        ) from exc
+    return normalized
+
+
+def resolve_database_url():
+    explicit_url = os.getenv("ZAP_DATABASE_URL")
+    if explicit_url is not None:
+        return normalize_database_url(explicit_url, env_name="ZAP_DATABASE_URL")
+    return normalize_database_url(os.getenv("DATABASE_URL"), env_name="DATABASE_URL")
+
 
 class BaseConfig:
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key")
     SESSION_COOKIE_NAME = os.getenv("SESSION_COOKIE_NAME", "zap_session")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///zap.db")
+    SQLALCHEMY_DATABASE_URI = resolve_database_url()
     UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "instance/uploads")
     PUBLIC_BASE_URL = (os.getenv("PUBLIC_BASE_URL") or os.getenv("RENDER_EXTERNAL_URL", "")).rstrip("/")
     BACKUP_DATABASE_URL = os.getenv("BACKUP_DATABASE_URL", "")

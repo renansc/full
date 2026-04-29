@@ -25,7 +25,8 @@ from urllib.parse import quote, urlencode
 from dotenv import load_dotenv
 from flask import Flask, abort, jsonify, redirect, request, send_from_directory, session
 from sqlalchemy import Boolean, Float, Integer, String, Text, create_engine, delete, inspect, select, text
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.engine import make_url
+from sqlalchemy.exc import ArgumentError, SQLAlchemyError
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 from werkzeug.exceptions import HTTPException
 from werkzeug.middleware.dispatcher import DispatcherMiddleware
@@ -208,11 +209,14 @@ def assert_table_name(value: str | None) -> str:
     return table_name
 
 
-def normalize_database_url(value: str | None) -> str | None:
+def normalize_database_url(value: str | None, *, env_name: str = "DATABASE_URL") -> str | None:
     if not value:
         return None
 
     normalized = value.strip()
+    if not normalized or normalized.lower() in {"false", "none", "null"}:
+        return None
+
     replacements = {
         "postgres://": "postgresql+psycopg://",
         "postgresql://": "postgresql+psycopg://",
@@ -222,8 +226,17 @@ def normalize_database_url(value: str | None) -> str | None:
 
     for prefix, replacement in replacements.items():
         if normalized.startswith(prefix):
-            return normalized.replace(prefix, replacement, 1)
+            normalized = normalized.replace(prefix, replacement, 1)
+            break
 
+    try:
+        make_url(normalized)
+    except ArgumentError as exc:
+        raise RuntimeError(
+            f"{env_name} invalida. Use uma URL completa, por exemplo "
+            "'postgresql://usuario:senha@host:5432/banco', ou deixe a variavel vazia "
+            "para usar SQLite."
+        ) from exc
     return normalized
 
 
@@ -1742,7 +1755,7 @@ def gps_database_config_enabled(config: dict[str, Any]) -> bool:
 
 def build_gps_database_url(config: dict[str, Any]) -> str:
     db = config.get("database") if isinstance(config.get("database"), dict) else {}
-    explicit_url = normalize_database_url(as_text(db.get("url")))
+    explicit_url = normalize_database_url(as_text(db.get("url")), env_name="GPS database.url")
     if explicit_url:
         return explicit_url
 

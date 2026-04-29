@@ -15,15 +15,17 @@ services:
         value: America/Sao_Paulo
       - key: ALLOW_SYSTEM_TIME_FALLBACK
         value: "1"
-      - key: MYSQL_HOST
+      - key: NANOPONTO_DATABASE_URL
         sync: false
-      - key: MYSQL_PORT
+      - key: NANOPONTO_MYSQL_HOST
+        sync: false
+      - key: NANOPONTO_MYSQL_PORT
         value: "3306"
-      - key: MYSQL_DATABASE
+      - key: NANOPONTO_MYSQL_DATABASE
         sync: false
-      - key: MYSQL_USER
+      - key: NANOPONTO_MYSQL_USER
         sync: false
-      - key: MYSQL_PASSWORD
+      - key: NANOPONTO_MYSQL_PASSWORD
         sync: false
       - key: SMTP_HOST
         value: smtp.gmail.com
@@ -38,7 +40,7 @@ services:
       - key: DEFAULT_EMPLOYER_NAME
         value: Nanotech
       - key: DEFAULT_EMPLOYER_DOCUMENT
-        value: "4625190000100"
+        value: "46025190000100"
       - key: DEFAULT_EMPLOYEE_NAME
         value: Renan Santos Coutinho
       - key: DEFAULT_EMPLOYEE_CPF

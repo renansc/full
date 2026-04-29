@@ -8,6 +8,7 @@
 <script src="../shared/remote-store.js"></script>
 <script async src="https://accounts.google.com/gsi/client"></script>
 <script async src="https://www.youtube.com/iframe_api"></script>
+<script src="https://sdk.scdn.co/spotify-player.js"></script>
 </head>
 <body>
 <header class="topbar">
@@ -147,15 +148,26 @@
       <div id="editorSourceSpotify" class="stack hidden">
         <div class="row">
           <div class="field grow">
-            <label>Link ou URI do Spotify</label>
+            <label>Buscar no Spotify</label>
+            <input id="spotifySearchInput" placeholder="Digite nome da música, artista..." autocomplete="off">
+            <div id="spotifySearchResults" class="search-results hidden"></div>
+          </div>
+          <div class="field grow">
+            <label>ou Link/URI</label>
             <input id="spotifySourceInput" placeholder="https://open.spotify.com/track/...">
           </div>
+        </div>
+        <div class="row">
           <div class="field grow">
             <label>Rótulo opcional</label>
             <input id="spotifySourceLabel" placeholder="Ex: Faixa oficial">
           </div>
         </div>
-        <div class="hint small">Aceita track, album, playlist ou episode. Para autenticar sua conta e validar o app, use a aba Config.</div>
+        <div class="hint small">Busque pelo nome ou cole link/URI. Conecte sua conta na aba Config para ver e marcar blocos automaticamente.</div>
+        <div id="spotifyEditorAuthStatus" class="hint small" style="margin-top:8px">
+          <span id="spotifyEditorAuthBadge" class="pill">Desconectado</span>
+          <span id="spotifyEditorAuthMessage"> - Conecte sua conta na aba Config para desbloquear marcação automática.</span>
+        </div>
       </div>
     </div>
 

@@ -1,11 +1,11 @@
+.git
+.venv
+__pycache__
+*.pyc
 .env
 openai.env
 data/*
 !data/.gitkeep
 dados/*
 !dados/.gitkeep
-*Zone.Identifier*
-__pycache__/
-*.py[cod]
-.venv/
-instance/
+instance

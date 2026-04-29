@@ -11,6 +11,9 @@ const IDB_STORE = "audio";
 const API_CONFIG_URL = "/api/gps/config";
 const API_CONFIG_TEST_URL = "/api/gps/config/test-database";
 const API_BACKUPS_URL = "/api/gps/backups";
+const SPOTIFY_API_BASE = "https://api.spotify.com/v1";
+const SPOTIFY_SEARCH_LIMIT = 10;
+const SPOTIFY_SEARCH_DEBOUNCE_MS = 300;
 
 const REMOTE_STORE = window.RemoteStoreClient
   ? window.RemoteStoreClient.create({
@@ -45,6 +48,14 @@ const state = {
   activeSourceType: "none",
   activeYouTubeId: "",
   activeSpotifyEmbedUrl: "",
+  spotifyPlayer: null,
+  spotifyPlaybackState: null,
+  spotifyDeviceId: "",
+  spotifySearchResults: [],
+  spotifySearchQuery: "",
+  spotifySearchDebounce: null,
+  spotifyCurrentTrack: null,
+  spotifyIsPlaying: false,
   syncStatusKind: "warn",
 };
 
@@ -57,6 +68,82 @@ window.onYouTubeIframeAPIReady = function(){
   state.youtubeReady = true;
   if(youtubeApiResolve) youtubeApiResolve();
 };
+
+window.onSpotifyWebPlaybackSDKReady = function(){
+  const accessToken = state.auth.spotify.accessToken;
+  if(!accessToken) {
+    console.log("Spotify Web Playback SDK ready, waiting for authentication");
+    return;
+  }
+
+  const player = new Spotify.Player({
+    name: "GPS Musical Player",
+    getOAuthToken: async (cb) => {
+      const token = await SPOTIFY_refreshIfNeeded();
+      cb(token);
+    },
+    volume: 0.5,
+  });
+
+  state.spotifyPlayer = player;
+
+  player.addListener("player_state_changed", (playbackState) => {
+    state.spotifyPlaybackState = playbackState;
+    SPOTIFY_updatePlaybackState(playbackState);
+  });
+
+  player.addListener("ready", ({ device_id }) => {
+    state.spotifyDeviceId = device_id;
+    console.log("Spotify device ready:", device_id);
+  });
+
+  player.addListener("not_ready", ({ device_id }) => {
+    console.log("Spotify device not ready:", device_id);
+  });
+
+  player.connect();
+};
+
+function SPOTIFY_updatePlaybackState(playbackState){
+  if(!playbackState) return;
+  
+  state.spotifyCurrentTrack = playbackState.track_window?.current_track;
+  state.spotifyIsPlaying = !playbackState.paused;
+  
+  if(state.playingMode === "timeline" && state.activeSourceType === "spotify") {
+    PLAYER_updateTimelineForSpotify(playbackState);
+  }
+}
+
+function PLAYER_updateTimelineForSpotify(playbackState){
+  if(!playbackState) return;
+  
+  const song = PLAYER_song();
+  if(!song) return;
+
+  const currentMs = playbackState.position;
+  const currentSec = currentMs / 1000;
+
+  const timedBlocks = song.blocks
+    .map((block, index) => ({ index, time: Number(block.timeSec) }))
+    .filter(item => Number.isFinite(item.time))
+    .sort((a, b) => a.time - b.time);
+
+  let active = timedBlocks[0];
+  for(const item of timedBlocks) {
+    if(item.time <= currentSec) active = item;
+    else break;
+  }
+
+  if(active && active.index !== state.currentBlockIndex) {
+    PLAYER_renderStage(active.index);
+  }
+
+  const durationMs = playbackState.track_window?.current_track?.duration_ms || 1;
+  $("stageProgress").style.width = `${(Math.max(0, Math.min(1, currentSec / (durationMs / 1000))) * 100).toFixed(2)}%`;
+  $("stageTime").textContent = `${fmtTime(currentSec)} / ${fmtTime(durationMs / 1000)}`;
+}
+
 
 function $(id){ return document.getElementById(id); }
 function nowISO(){ return new Date().toISOString(); }
@@ -989,7 +1076,9 @@ async function MEDIA_loadSongSource(song){
 }
 
 function SOURCE_supportsTimeline(){
-  return state.activeSourceType === "local" || state.activeSourceType === "youtube";
+  return state.activeSourceType === "local" || 
+         state.activeSourceType === "youtube" || 
+         (state.activeSourceType === "spotify" && state.spotifyPlayer);
 }
 
 function SOURCE_hasPlayableSource(){
@@ -1002,13 +1091,52 @@ function SOURCE_hasPlayableSource(){
 function SOURCE_play(){
   if(state.activeSourceType === "local") return getAudio().play();
   if(state.activeSourceType === "youtube" && state.youtubePlayerReady) return state.youtubePlayer.playVideo();
+  if(state.activeSourceType === "spotify" && state.spotifyPlayer && state.spotifyDeviceId) {
+    return SPOTIFY_play();
+  }
   return null;
 }
+
+async function SPOTIFY_play(){
+  if(!state.spotifyCurrentTrack) return;
+  try {
+    await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${state.spotifyDeviceId}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${state.auth.spotify.accessToken}`,
+      },
+      body: JSON.stringify({
+        uris: [state.spotifyCurrentTrack.uri],
+      }),
+    });
+  } catch(error) {
+    console.error("Spotify play error:", error);
+  }
+}
+
 
 function SOURCE_pause(){
   if(state.activeSourceType === "local") getAudio().pause();
   if(state.activeSourceType === "youtube" && state.youtubePlayerReady) state.youtubePlayer.pauseVideo();
+  if(state.activeSourceType === "spotify" && state.spotifyPlayer) {
+    SPOTIFY_pause();
+  }
 }
+
+async function SPOTIFY_pause(){
+  try {
+    await fetch(`https://api.spotify.com/v1/me/player/pause?device_id=${state.spotifyDeviceId}`, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${state.auth.spotify.accessToken}`,
+      },
+    });
+  } catch(error) {
+    console.error("Spotify pause error:", error);
+  }
+}
+
 
 function SOURCE_seek(seconds){
   const target = Math.max(0, Number(seconds) || 0);
@@ -1016,32 +1144,64 @@ function SOURCE_seek(seconds){
     getAudio().currentTime = target;
   }else if(state.activeSourceType === "youtube" && state.youtubePlayerReady){
     state.youtubePlayer.seekTo(target, true);
+  }else if(state.activeSourceType === "spotify") {
+    SPOTIFY_seek(target * 1000);
   }
 }
+
+async function SPOTIFY_seek(positionMs){
+  try {
+    await fetch(`https://api.spotify.com/v1/me/player/seek?position_ms=${Math.floor(positionMs)}&device_id=${state.spotifyDeviceId}`, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${state.auth.spotify.accessToken}`,
+      },
+    });
+  } catch(error) {
+    console.error("Spotify seek error:", error);
+  }
+}
+
 
 function SOURCE_getCurrentTime(){
   if(state.activeSourceType === "local") return Number(getAudio().currentTime || 0);
   if(state.activeSourceType === "youtube" && state.youtubePlayerReady){
     try{ return Number(state.youtubePlayer.getCurrentTime() || 0); }catch{ return 0; }
   }
+  if(state.activeSourceType === "spotify" && state.spotifyPlaybackState) {
+    return state.spotifyPlaybackState.position / 1000;
+  }
   return 0;
 }
+
 
 function SOURCE_getDuration(){
   if(state.activeSourceType === "local") return Number(getAudio().duration || 0);
   if(state.activeSourceType === "youtube" && state.youtubePlayerReady){
     try{ return Number(state.youtubePlayer.getDuration() || 0); }catch{ return 0; }
   }
+  if(state.activeSourceType === "spotify" && state.spotifyCurrentTrack) {
+    return state.spotifyCurrentTrack.duration_ms / 1000;
+  }
   return 0;
 }
+
 
 function UI_updatePlaybackButtons(){
   const canTimeline = SOURCE_supportsTimeline();
   $("markBtn").disabled = !canTimeline;
   $("playTimelineBtn").disabled = !canTimeline;
-  $("playerHint").innerHTML = canTimeline
-    ? 'Timeline usa o tempo do MP3 local ou do vídeo no YouTube. Atalhos no palco: <kbd>→</kbd>, <kbd>←</kbd> e <kbd>Esc</kbd>.'
-    : "Spotify funciona como fonte incorporada. O modo slide continua disponível, mas a marcação automática de tempo fica desativada.";
+  
+  let hintText = "Atalhos no palco: <kbd>→</kbd>, <kbd>←</kbd> e <kbd>Esc</kbd>. ";
+  if(state.activeSourceType === "spotify" && state.spotifyPlayer) {
+    hintText += "Timeline Spotify usa duração da API. Marque tempos nos blocos.";
+  } else if(state.activeSourceType === "youtube") {
+    hintText += "Timeline usa tempo do vídeo. Marque tempos automaticamente no palco.";
+  } else if(state.activeSourceType === "local") {
+    hintText += "Timeline usa tempo do MP3. Marque tempos automaticamente no palco.";
+  }
+  
+  $("playerHint").innerHTML = canTimeline ? hintText : "Modo slide continua disponível, mas marcação automática de tempo requer MP3 local, YouTube ou Spotify autenticado.";
 }
 
 function PLAYER_song(){
@@ -1349,6 +1509,12 @@ function UI_renderAuthStatus(){
   $("spotifyAuthStatus").textContent = spotifyConnected
     ? `Conta ativa: ${state.auth.spotify.profileName || "Spotify conectado"}`
     : "Nenhuma conta conectada.";
+  
+  // Update editor Spotify auth status
+  if($("spotifyEditorAuthBadge")) {
+    $("spotifyEditorAuthBadge").textContent = spotifyConnected ? "Conectado" : "Desconectado";
+    $("spotifyEditorAuthBadge").className = `pill ${spotifyConnected ? "ok" : "warn"}`;
+  }
 }
 
 async function YOUTUBE_connect(){
@@ -1448,6 +1614,11 @@ async function SPOTIFY_exchangeCode(code){
   const mePayload = await me.json();
   state.auth.spotify.profileName = mePayload?.display_name || mePayload?.id || "Conta Spotify";
   saveAuthState();
+  
+  // Re-initialize Web Playback Player if SDK is ready
+  if(window.Spotify?.Player && window.onSpotifyWebPlaybackSDKReady) {
+    window.onSpotifyWebPlaybackSDKReady();
+  }
 }
 
 async function SPOTIFY_refreshIfNeeded(){
@@ -1480,6 +1651,124 @@ function SPOTIFY_disconnect(){
   state.auth.spotify = { accessToken: "", refreshToken: "", expiresAt: 0, profileName: "" };
   saveAuthState();
 }
+
+async function SPOTIFY_search(query, type = "track"){
+  if(!query.trim()) {
+    state.spotifySearchResults = [];
+    return;
+  }
+
+  const accessToken = await SPOTIFY_refreshIfNeeded();
+  if(!accessToken) {
+    console.warn("Spotify access token não disponível para busca");
+    return;
+  }
+
+  try {
+    const params = new URLSearchParams({
+      q: query.trim(),
+      type: type,
+      limit: SPOTIFY_SEARCH_LIMIT,
+    });
+
+    const response = await fetch(`${SPOTIFY_API_BASE}/search?${params}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if(!response.ok) {
+      console.warn("Spotify search failed:", response.status);
+      state.spotifySearchResults = [];
+      return;
+    }
+
+    const payload = await response.json();
+    
+    if(type === "track" && payload.tracks) {
+      state.spotifySearchResults = (payload.tracks.items || []).map(item => ({
+        id: item.id,
+        type: "track",
+        name: item.name,
+        artist: (item.artists || []).map(a => a.name).join(", "),
+        duration_ms: item.duration_ms,
+        uri: item.uri,
+        url: item.external_urls.spotify,
+        embedUrl: `https://open.spotify.com/embed/track/${item.id}?utm_source=gpsmusical`,
+        image: item.album?.images?.[0]?.url || "",
+      }));
+    }
+
+    UI_renderSpotifySearchResults();
+  } catch(error) {
+    console.error("Spotify search error:", error);
+    state.spotifySearchResults = [];
+  }
+}
+
+function SPOTIFY_searchDebounced(query){
+  if(state.spotifySearchDebounce) clearTimeout(state.spotifySearchDebounce);
+  state.spotifySearchDebounce = setTimeout(() => {
+    SPOTIFY_search(query, "track");
+  }, SPOTIFY_SEARCH_DEBOUNCE_MS);
+}
+
+function UI_renderSpotifySearchResults(){
+  const container = $("spotifySearchResults");
+  if(!container) return;
+  
+  container.innerHTML = "";
+  if(!state.spotifySearchResults.length) {
+    container.innerHTML = '<div class="hint small">Nenhum resultado.</div>';
+    return;
+  }
+
+  state.spotifySearchResults.forEach(item => {
+    const div = document.createElement("div");
+    div.className = "spotify-search-item";
+    div.innerHTML = `
+      <div class="spotify-result-image" style="background-image: url('${esc(item.image)}')"></div>
+      <div class="spotify-result-info">
+        <div class="spotify-result-name">${esc(item.name)}</div>
+        <div class="hint small">${esc(item.artist || "")}</div>
+      </div>
+    `;
+    div.addEventListener("click", () => SPOTIFY_selectSearchResult(item));
+    container.appendChild(div);
+  });
+}
+
+function SPOTIFY_selectSearchResult(item){
+  $("spotifySourceInput").value = item.url;
+  $("spotifySourceLabel").value = item.name;
+  state.spotifySearchResults = [];
+  UI_renderSpotifySearchResults();
+}
+
+async function SPOTIFY_getTrackInfo(trackId){
+  const accessToken = await SPOTIFY_refreshIfNeeded();
+  if(!accessToken) return null;
+
+  try {
+    const response = await fetch(`${SPOTIFY_API_BASE}/tracks/${trackId}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+
+    if(!response.ok) return null;
+
+    const item = await response.json();
+    return {
+      id: item.id,
+      name: item.name,
+      artist: (item.artists || []).map(a => a.name).join(", "),
+      duration_ms: item.duration_ms,
+      uri: item.uri,
+      url: item.external_urls.spotify,
+    };
+  } catch(error) {
+    console.error("Error fetching Spotify track info:", error);
+    return null;
+  }
+}
+
 
 async function AUTH_handleSpotifyCallback(){
   const params = new URLSearchParams(location.search);
@@ -1566,6 +1855,33 @@ function bindEvents(){
   $("refreshRemoteBtn").addEventListener("click", SYNC_now);
 
   $("audioSourceType").addEventListener("change", (event) => UI_setEditorSourceType(event.target.value));
+  
+  // Spotify search in editor
+  if($("spotifySearchInput")) {
+    $("spotifySearchInput").addEventListener("input", (e) => {
+      const container = $("spotifySearchResults");
+      if(e.target.value.trim()) {
+        container?.classList.remove("hidden");
+      } else {
+        container?.classList.add("hidden");
+      }
+      SPOTIFY_searchDebounced(e.target.value);
+    });
+    
+    $("spotifySearchInput").addEventListener("blur", () => {
+      setTimeout(() => {
+        const container = $("spotifySearchResults");
+        container?.classList.add("hidden");
+      }, 200);
+    });
+    
+    $("spotifySearchInput").addEventListener("focus", () => {
+      if(state.spotifySearchResults.length) {
+        $("spotifySearchResults")?.classList.remove("hidden");
+      }
+    });
+  }
+  
   $("audioFileEditor").addEventListener("change", (event) => {
     const file = event.target.files?.[0];
     if(!file) return;
